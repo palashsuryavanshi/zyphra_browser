@@ -227,6 +227,16 @@
     <string name="ext_installing">Installing extension…</string>
     <string name="ext_install_failed">Install failed</string>
     <string name="uninstall_ext">Uninstall extension</string>
+    <!-- Per-extension management: the row dialog, its enable state and the
+         extension\'s own settings page. -->
+    <string name="ext_enabled">Enabled</string>
+    <string name="ext_disabled">Disabled</string>
+    <string name="ext_enable">Enable</string>
+    <string name="ext_disable">Disable</string>
+    <string name="ext_open_settings">Extension settings</string>
+    <string name="ext_enabled_toast">%1$s enabled</string>
+    <string name="ext_disabled_toast">%1$s disabled</string>
+    <string name="ext_action_failed">Could not change that extension</string>
     <string name="default_search_engine">Default search engine</string>
     <string name="manage_engines">Manage alternative search engines</string>
     <string name="manage_engines_sub">Edit engines visible in the search menu</string>

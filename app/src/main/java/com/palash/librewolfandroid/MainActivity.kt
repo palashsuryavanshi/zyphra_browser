@@ -1256,15 +1256,20 @@ class MainActivity : AppCompatActivity() {
             }
         }
         val data = intent.data?.toString()
-        val isExternalWebLink = intent.action == Intent.ACTION_VIEW && data != null &&
+        // A VIEW intent with an extension's own page (moz-extension://…) gets
+        // the same treatment as a link from another app: it opens in a new
+        // tab, so opening an add-on's settings never throws away the page the
+        // user is currently reading.
+        val opensInNewTab = intent.action == Intent.ACTION_VIEW && data != null &&
             (data.startsWith("http://", ignoreCase = true) ||
-                data.startsWith("https://", ignoreCase = true))
+                data.startsWith("https://", ignoreCase = true) ||
+                data.startsWith("moz-extension:", ignoreCase = true))
 
-        // External HTTP/HTTPS links always open in a new tab, so a link from
+        // External links always open in a new tab, so a link from
         // another app can never replace the page the user was reading. Existing
         // tabs stay where they are and the new tab becomes active. The tab is
         // created before navigate() runs, so navigate() lands in it.
-        if (isExternalWebLink) {
+        if (opensInNewTab) {
             newTab(isPrivate = false, select = true, skipHomepage = true)
         } else if (tabs.isEmpty()) {
             newTab(isPrivate = false, select = true)
@@ -2121,6 +2126,10 @@ class MainActivity : AppCompatActivity() {
                 return
             }
             text.startsWith("about:") -> text
+            // An extension's options page. The engine's own address: it has a
+            // dot in it, so without this branch it would fall to the host
+            // check below and be rewritten to "https://moz-extension://…".
+            text.startsWith("moz-extension:") -> text
             text.startsWith("//") -> "https:$text"
             text == "localhost" || text.startsWith("localhost:") ||
                 text.matches(Regex("\\d{1,3}(\\.\\d{1,3}){3}(:\\d+)?(/.*)?")) ||
