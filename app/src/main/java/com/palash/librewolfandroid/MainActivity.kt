@@ -2452,18 +2452,60 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** Tracks which engine the badge currently shows, so an async icon load
+     *  that completes after the engine changed does not paint the wrong icon. */
+    private var currentBadgeEngine: String? = null
+
     /** Engine badge in the toolbar pill reflects the active (normal/private) engine. */
     private fun updateEngineBadge() {
         val badge = findViewById<TextView>(R.id.engine_badge) ?: return
         val engine = store.engineFor(activeTab()?.isPrivate == true)
-        badge.text = badgeLetter(engine.name, engine.name)
-        badge.background?.setTint(badgeColorFor(engine.name))
-        // The badge is a single letter, so the control that holds it said nothing
-        // to a screen reader: it was announced only as the static string
-        // "default search engine" regardless of which engine was actually live.
-        // The name now goes on the tappable parent, which is what gets focus.
         findViewById<View>(R.id.engine_picker)?.contentDescription =
             getString(R.string.a11y_engine_picker, engine.name)
+
+        // Only reset if the engine actually changed; otherwise a resumed activity
+        // would re-trigger a network fetch for an icon we already have.
+        if (currentBadgeEngine == engine.name) return
+        currentBadgeEngine = engine.name
+
+        // Built-in engines ship their icon as a drawable resource, so it is
+        // available instantly and works offline. Custom engines (iconRes == 0)
+        // fall through to the download path below.
+        val bundled = engine.iconRes
+        if (bundled != 0) {
+            badge.text = ""
+            badge.background = getDrawable(bundled)
+            badge.background?.setTintList(null)
+            return
+        }
+
+        // Show the letter immediately so the badge is never blank while the
+        // favicon downloads. Replace it with the icon once it arrives.
+        badge.text = badgeLetter(engine.name, engine.name)
+        badge.background = getDrawable(R.drawable.bg_engine_badge)
+        badge.background?.setTint(badgeColorFor(engine.name))
+
+        val cached = EngineIconCache.get(this, engine)
+        if (cached != null) {
+            showEngineIcon(badge, cached)
+        } else {
+            EngineIconCache.loadAsync(this, engine) { bitmap ->
+                if (bitmap != null && currentBadgeEngine == engine.name) {
+                    runOnUiThread {
+                        showEngineIcon(badge, bitmap)
+                    }
+                }
+            }
+        }
+    }
+
+    /** Replaces the letter badge with a downloaded favicon. */
+    private fun showEngineIcon(badge: TextView, bitmap: android.graphics.Bitmap) {
+        val sizePx = (28 * resources.displayMetrics.density).toInt()
+        val circular = EngineIconCache.circularBitmap(bitmap, sizePx)
+        badge.text = ""
+        badge.background = android.graphics.drawable.BitmapDrawable(resources, circular)
+        badge.background?.setTintList(null)
     }
 
     private fun showEnginePicker() {

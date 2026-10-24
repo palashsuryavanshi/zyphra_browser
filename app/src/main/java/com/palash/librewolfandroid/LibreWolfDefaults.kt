@@ -92,7 +92,7 @@ object LibreWolfDefaults {
     )
     const val QUERY_STRIP_ALLOW = "urldefense.com"
 
-    data class SearchEngine(val name: String, val queryUrl: String)
+    data class SearchEngine(val name: String, val queryUrl: String, val iconRes: Int = 0)
 
     /**
      * The built-in engines, in the order they are offered.
@@ -106,14 +106,14 @@ object LibreWolfDefaults {
      * reordering it cannot change the engine somebody already chose.
      */
     val SEARCH_ENGINES = listOf(
-        SearchEngine("Brave", "https://search.brave.com/search?q=%s"),
-        SearchEngine("DuckDuckGo", "https://duckduckgo.com/?q=%s"),
-        SearchEngine("Google", "https://www.google.com/search?q=%s"),
-        SearchEngine("Bing", "https://www.bing.com/search?q=%s"),
-        SearchEngine("Ecosia", "https://www.ecosia.org/search?q=%s"),
-        SearchEngine("Mojeek", "https://www.mojeek.com/search?q=%s"),
-        SearchEngine("Qwant", "https://www.qwant.com/?q=%s&t=web"),
-        SearchEngine("Startpage", "https://www.startpage.com/sp/search?query=%s"),
+        SearchEngine("Brave", "https://search.brave.com/search?q=%s", R.drawable.ic_engine_brave),
+        SearchEngine("DuckDuckGo", "https://duckduckgo.com/?q=%s", R.drawable.ic_engine_duckduckgo),
+        SearchEngine("Google", "https://www.google.com/search?q=%s", R.drawable.ic_engine_google),
+        SearchEngine("Bing", "https://www.bing.com/search?q=%s", R.drawable.ic_engine_bing),
+        SearchEngine("Ecosia", "https://www.ecosia.org/search?q=%s", R.drawable.ic_engine_ecosia),
+        SearchEngine("Mojeek", "https://www.mojeek.com/search?q=%s", R.drawable.ic_engine_mojeek),
+        SearchEngine("Qwant", "https://www.qwant.com/?q=%s&t=web", R.drawable.ic_engine_qwant),
+        SearchEngine("Startpage", "https://www.startpage.com/sp/search?query=%s", R.drawable.ic_engine_startpage),
     )
 
     /**
