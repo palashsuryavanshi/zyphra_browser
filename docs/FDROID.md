@@ -64,8 +64,8 @@ Per-ABI, which is how F-Droid builds it:
 
 ```
 ./gradlew assembleRelease -PfdroidBuild=true -PfdroidAbi=arm64-v8a \
-                          -PcurrentVersionCode=15600502 \
-                          "-PfdroidVersionName=1.2beta3-fdroid"
+                          -PcurrentVersionCode=101 \
+                          "-PfdroidVersionName=1.0-fdroid"
 ```
 
 | Flag | Meaning |
@@ -76,8 +76,8 @@ Per-ABI, which is how F-Droid builds it:
 | `fdroidVersionName` | Version name, suffixed so F-Droid's build is distinguishable |
 
 Quote the version name on Windows. `gradlew.bat` mis-splits an unquoted
-dotted value: `-PfdroidVersionName=1.2beta3-fdroid` becomes
-`-PfdroidVersionName=1` plus a bogus `.2beta3-fdroid` task.
+dotted value: `-PfdroidVersionName=1.0-fdroid` becomes
+`-PfdroidVersionName=1` plus a bogus `.0-fdroid` task.
 
 ## Verified on this checkout
 
@@ -85,7 +85,7 @@ dotted value: `-PfdroidVersionName=1.2beta3-fdroid` becomes
 |---|---|
 | `assembleDebug` (default) | builds |
 | `assembleDebug -PfdroidBuild=true` | builds |
-| `assembleRelease` (default, all 4 APKs) | builds; sizes match the published v1.2beta3 exactly |
+| `assembleRelease` (default, all 4 APKs) | builds |
 | `assembleRelease` per-ABI, GMS-free, all 3 ABIs | builds |
 | `assembleRelease` with **no keystore present** | builds, emits `-unsigned.apk` |
 | `lintDebug` | 0 errors |
@@ -117,23 +117,23 @@ Repo: https://github.com/palashsuryavanshi/ZyphraAndroid.git
 # No AllowedAPKSigningKeys: F-Droid signs with its own key.
 
 Builds:
-  - versionName: 1.2beta3-fdroid
-    versionCode: 15600501
-    commit: '5b4d2ccb8275cc15c7c675a53fd7e3208d4fccc2'
+  - versionName: 1.0-fdroid
+    versionCode: 101
+    commit: '<tag v1.0 commit>'
     gradle: yes
-    gradleprops: fdroidBuild=true,fdroidAbi=armeabi-v7a,currentVersionCode=15600501,fdroidVersionName=1.2beta3-fdroid
+    gradleprops: fdroidBuild=true,fdroidAbi=armeabi-v7a,currentVersionCode=101,fdroidVersionName=1.0-fdroid
     output: app/build/outputs/apk/release/*-unsigned.apk
-  - versionName: 1.2beta3-fdroid
-    versionCode: 15600502
-    commit: '5b4d2ccb8275cc15c7c675a53fd7e3208d4fccc2'
+  - versionName: 1.0-fdroid
+    versionCode: 102
+    commit: '<tag v1.0 commit>'
     gradle: yes
-    gradleprops: fdroidBuild=true,fdroidAbi=arm64-v8a,currentVersionCode=15600502,fdroidVersionName=1.2beta3-fdroid
+    gradleprops: fdroidBuild=true,fdroidAbi=arm64-v8a,currentVersionCode=102,fdroidVersionName=1.0-fdroid
     output: app/build/outputs/apk/release/*-unsigned.apk
-  - versionName: 1.2beta3-fdroid
-    versionCode: 15600503
-    commit: '5b4d2ccb8275cc15c7c675a53fd7e3208d4fccc2'
+  - versionName: 1.0-fdroid
+    versionCode: 103
+    commit: '<tag v1.0 commit>'
     gradle: yes
-    gradleprops: fdroidBuild=true,fdroidAbi=x86_64,currentVersionCode=15600503,fdroidVersionName=1.2beta3-fdroid
+    gradleprops: fdroidBuild=true,fdroidAbi=x86_64,currentVersionCode=103,fdroidVersionName=1.0-fdroid
     output: app/build/outputs/apk/release/*-unsigned.apk
 ```
 
@@ -143,9 +143,9 @@ given, so every generated block would inherit one ABI — which cannot work when
 each architecture needs different `gradleprops`. The cost is that a new release
 needs three blocks written by hand.
 
-`changelogs/` carries copies for `15600501`, `15600502` and `15600503` as well
-as `156005`, because F-Droid looks the changelog up by version code and the
-per-ABI codes are not the base one.
+`changelogs/` carries the release changelog under the base version code; the
+per-ABI codes (101–103) are assigned at F-Droid build time and F-Droid falls
+back sensibly when no exact per-ABI changelog exists.
 
 ## Other changes made for F-Droid
 

@@ -105,12 +105,12 @@ certificate and a higher version code are only *mechanically* the conditions
 Android requires. It has now actually been run, on a Pixel 9a (arm64, Android
 17), against the project's real release key rather than a throwaway:
 
-1. Installed v1.1.1 (`versionCode` 156003, release-signed).
+1. Installed the previous release-signed build.
 2. Skipped onboarding, loaded `example.com`, so a history entry and a session
    existed on disk.
-3. `adb install -r` of the v1.2beta2 arm64 release (`versionCode` 156004) →
+3. `adb install -r` of the newer arm64 release →
    `Success`. No uninstall, no `INSTALL_FAILED_UPDATE_INCOMPATIBLE`.
-4. `versionCode` 156003 → 156004 and `versionName` 1.1.1 → 1.2beta2, confirmed
+4. The version code and version name moved up, confirmed
    from `dumpsys package`.
 5. Force-stopped and relaunched: the session was restored from disk rather than
    rebuilt, so the persisted record survived.
@@ -200,7 +200,7 @@ Listed because an untested path is a claim nobody has made yet.
   but there is still no schema version in the preference files. Every persisted
   record is read through tolerant accessors (`optString`, `optInt`) so a format
   change degrades to defaults rather than throwing, but a real migration hook is
-  needed before the first *breaking* change. The v1.1.1 → v1.2beta2 upgrade
+  needed before the first *breaking* change. The upgrade test
   exercised no format change, so it does not evidence one.
 - **RTL layout and Unicode text.** `supportsRtl` is declared and no layout or
   source file hardcodes left/right, gravity or margins, which was checked by

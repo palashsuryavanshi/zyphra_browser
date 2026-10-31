@@ -70,32 +70,32 @@ MaintainerNotes: |
     <li><code>buildToolsVersion</code> is deliberately unpinned: pinning one
     revision breaks the build on any machine lacking exactly that revision.</li>
     <li>Upstream also publishes a signed release on GitHub
-    (<code>v1.2beta3</code>) which <i>does</i> include Play Services and
+    (<code>v1.0</code>) which <i>does</i> include Play Services and
     supports passkeys. These builds are the same codebase built without them,
     versioned <code>-fdroid</code> so the two are distinguishable.</li>
   </ul>
 
 Builds:
-  - versionName: 1.2beta3-fdroid
-    versionCode: 15600501
-    commit: '0fb3b6a7bfed7dd33600a18e60b73f79e5e3f23f'
+  - versionName: 1.0-fdroid
+    versionCode: 101
+    commit: '<tag v1.0 commit>'
     timeout: 5400
     gradle: yes
-    gradleprops: fdroidBuild=true,fdroidAbi=armeabi-v7a,currentVersionCode=15600501,fdroidVersionName=1.2beta3-fdroid
+    gradleprops: fdroidBuild=true,fdroidAbi=armeabi-v7a,currentVersionCode=101,fdroidVersionName=1.0-fdroid
     output: app/build/outputs/apk/release/app-armeabi-v7a-release-unsigned.apk
 
-  - versionName: 1.2beta3-fdroid
-    versionCode: 15600502
-    commit: '0fb3b6a7bfed7dd33600a18e60b73f79e5e3f23f'
+  - versionName: 1.0-fdroid
+    versionCode: 102
+    commit: '<tag v1.0 commit>'
     timeout: 5400
     gradle: yes
-    gradleprops: fdroidBuild=true,fdroidAbi=arm64-v8a,currentVersionCode=15600502,fdroidVersionName=1.2beta3-fdroid
+    gradleprops: fdroidBuild=true,fdroidAbi=arm64-v8a,currentVersionCode=102,fdroidVersionName=1.0-fdroid
     output: app/build/outputs/apk/release/app-arm64-v8a-release-unsigned.apk
 
-  - versionName: 1.2beta3-fdroid
-    versionCode: 15600503
-    commit: '0fb3b6a7bfed7dd33600a18e60b73f79e5e3f23f'
+  - versionName: 1.0-fdroid
+    versionCode: 103
+    commit: '<tag v1.0 commit>'
     timeout: 5400
     gradle: yes
-    gradleprops: fdroidBuild=true,fdroidAbi=x86_64,currentVersionCode=15600503,fdroidVersionName=1.2beta3-fdroid
+    gradleprops: fdroidBuild=true,fdroidAbi=x86_64,currentVersionCode=103,fdroidVersionName=1.0-fdroid
     output: app/build/outputs/apk/release/app-x86_64-release-unsigned.apk

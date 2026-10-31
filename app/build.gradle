@@ -42,8 +42,8 @@ def fdroidBuild = project.hasProperty('fdroidBuild') &&
 // architecture's fdroidAbi — which cannot work when each needs a different one.
 //
 //   ./gradlew assembleRelease -PfdroidBuild=true -PfdroidAbi=arm64-v8a \
-//                             -PcurrentVersionCode=15600502 \
-//                             "-PfdroidVersionName=1.2beta3-fdroid"
+//                             -PcurrentVersionCode=102 \
+//                             "-PfdroidVersionName=1.0-fdroid"
 def fdroidAbi = project.findProperty('fdroidAbi')
 def currentVersionCode = project.findProperty('currentVersionCode')
 def fdroidVersionName = project.findProperty('fdroidVersionName')
@@ -81,18 +81,12 @@ android {
         applicationId 'com.zyphra.browser'
         minSdk 26
         targetSdk 34
-        // versionCode must strictly increase for an update to install over an
-        // existing copy. v1.1.1 is 156003, v1.2beta2 is 156004 and v1.2beta3 is
-        // 156005, so v1.3 takes 156006. Reusing or lowering it would make this
-        // a downgrade, which Android refuses, and the only remedy for that is an
-        // uninstall -- which deletes the user's history, bookmarks, cookies and
-        // vault.
-        //
-        // currentVersionCode exists so F-Droid can assign a distinct code per
-        // ABI. It overrides the literal rather than replacing it, so the
-        // shipped version is always visible here.
-        versionCode (currentVersionCode ? currentVersionCode as int : 156009)
-        versionName (fdroidVersionName ?: '1.4.2')
+        // versionCode 1, versionName 1.0: the first release of the Zyphra
+        // project. The pre-rebrand builds shipped under a different
+        // applicationId and a different signing key, so they cannot update
+        // into this one regardless of the number here.
+        versionCode (currentVersionCode ? currentVersionCode as int : 1)
+        versionName (fdroidVersionName ?: '1.0')
 
         // Needed for `connectedAndroidTest` to exist at all. UIAutomator rather
         // than Espresso for anything inside GeckoView, because the engine
