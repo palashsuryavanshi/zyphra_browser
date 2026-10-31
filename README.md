@@ -470,7 +470,7 @@ Expect v2 and v3 true and v1 false.
 
 ```
 Signing certificate SHA-256:
-138c5c38e3087b6e0688db23f554b991994563a5a124c4543a198b2d5d37a6
+138c5c38e3087b6e060188db23f554b991994563a5a124c4543a198b2d5d37a6
 ```
 
 If that digest does not match, do not install it.
