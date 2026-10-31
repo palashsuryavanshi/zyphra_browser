@@ -46,7 +46,7 @@ import org.mozilla.geckoview.WebRequestError
 import org.mozilla.geckoview.WebResponse
 
 /**
- * Browser home: official LibreWolf logo, private-tab button, tracker pill, bottom
+ * Browser home: official Zyphra logo, private-tab button, tracker pill, bottom
  * toolbar (home | address | tab count | menu), tab tray, menu sheet.
  * Engine settings mirror source/settings/librewolf.cfg.
  */
@@ -91,7 +91,7 @@ class MainActivity : AppCompatActivity() {
         const val ACTION_PRIVATE_TAB = "com.zyphra.browser.PRIVATE_TAB"
 
         /** Tag for preview-capture diagnostics. Never logs a URL or a tab title. */
-        const val TAG_PREVIEW = "LibreWolfPreview"
+        const val TAG_PREVIEW = "ZyphraPreview"
         const val ACTION_ABOUT = "com.zyphra.browser.ABOUT"
         const val ACTION_OPEN_NOTIFICATION = "com.zyphra.browser.OPEN_NOTIFICATION"
         const val ACTION_DATA_CLEARED = "com.zyphra.browser.DATA_CLEARED"
@@ -1550,7 +1550,7 @@ class MainActivity : AppCompatActivity() {
         if (tab.url.isNotBlank()) tab.session.loadUri(tab.url)
     }
 
-    /** Engine settings built from LibreWolf desktop defaults. Applied at startup. */
+    /** Engine settings built from Zyphra desktop defaults. Applied at startup. */
     private fun buildRuntimeSettings(): GeckoRuntimeSettings {
         val dohProviders = ZyphraDefaults.DOH_PROVIDERS
         val doh = dohProviders[store.dohProvider.coerceIn(dohProviders.indices)]
@@ -3254,7 +3254,7 @@ class MainActivity : AppCompatActivity() {
             .setTitle(getString(R.string.about_title))
             .setIcon(R.drawable.zyphra_logo)
             .setMessage(
-                "LibreWolf Android ${BuildConfig.VERSION_NAME}\n" +
+                "Zyphra Browser ${BuildConfig.VERSION_NAME}\n" +
                     "Upstream Firefox: ${BuildConfig.UPSTREAM_FIREFOX} / LW release ${BuildConfig.ZYPHRA_RELEASE}\n" +
                     "Engine: GeckoView ${ZyphraDefaults.GECKOVIEW_VERSION}\n\n" +
                     "Privacy defaults ported from source/settings/librewolf.cfg.\n" +

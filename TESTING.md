@@ -1,4 +1,4 @@
-# LibreWolf Android acceptance record
+# Zyphra Browser acceptance record
 
 This is the record of what has been exercised on real hardware, what has not, and
 where the engine stops the shell from doing something. The regression checklist these\r\nrecords answer is at the end of this file.

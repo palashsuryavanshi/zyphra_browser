@@ -1,8 +1,8 @@
-# LibreWolf Android browser-shell roadmap
+# Zyphra Browser browser-shell roadmap
 
 ## Architecture decision
 
-LibreWolf Android keeps **GeckoView 147** as its standards-compliant web engine. It
+Zyphra Browser keeps **GeckoView 147** as its standards-compliant web engine. It
 implements the Android browser shell, permissions, prompts, storage, recovery and
 system integration around that engine. It does not reimplement HTML, CSS,
 JavaScript, WebAssembly, WebGL, cookies, service workers or other web-platform
@@ -23,7 +23,7 @@ identity and provides working Android Widevine L1 DRM support.
 ## Phase 0 — Baseline and audit (complete)
 
 - Record engine capabilities and browser-shell gaps.
-- Keep LibreWolf naming and a single canonical app icon (`logo/app-icon.png`) across launcher, start page and About.
+- Keep Zyphra Browser naming and a single canonical app icon (`logo/app-icon.png`) across launcher, start page and About.
 - Establish the physical-device regression flow.
 - Track popup/new-window and DRM regressions.
 
@@ -104,7 +104,7 @@ what was exercised; this is the shape of it.
 
 | Phase | Delivered |
 | --- | --- |
-| 0 — Baseline | LibreWolf naming, one canonical icon (`logo/app-icon.png`), the physical-device regression flow. |
+| 0 — Baseline | Zyphra Browser naming, one canonical icon (`logo/app-icon.png`), the physical-device regression flow. |
 | 1 / P0 | Navigation, pop-ups, prompts, origin-aware permissions, file and camera upload, HTTP authentication, downloads, Safe Browsing, error pages, notifications, Widevine DRM, external intents, form paths. |
 | 2 / P1 | Tab persistence and private isolation, tab actions, recently closed, history, bookmarks with folders and import/export, the encrypted local password vault, find-in-page, context actions, favicons. |
 | 3 / P2 | Fullscreen video with transient bars, picture-in-picture following the video element's aspect ratio, a real `MediaSession`, audio focus and noisy-route handling, edge-to-edge insets, rotation including PiP, share-into-browser, web-app install and display-mode chrome hiding. |

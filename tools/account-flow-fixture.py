@@ -44,7 +44,7 @@ VALID_PASS = "correct-horse"
 VALID_BASIC = base64.b64encode(f"{VALID_USER}:{VALID_PASS}".encode()).decode()
 
 PAYLOAD_DIR = os.environ.get(
-    "LW_PAYLOAD_DIR", os.path.join(tempfile.gettempdir(), "librewolf-account-fixture")
+    "LW_PAYLOAD_DIR", os.path.join(tempfile.gettempdir(), "zyphra-account-fixture")
 )
 REPORT_PATH = os.environ.get(
     "LW_REPORT", os.path.join(PAYLOAD_DIR, "submissions.log")
@@ -111,7 +111,7 @@ HOME = page(
 
 class Handler(http.server.BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
-    server_version = "LibreWolfAccountFixture/1.0"
+    server_version = "ZyphraAccountFixture/1.0"
 
     # ---- helpers ----
 
@@ -232,7 +232,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     document.getElementById('state').textContent = 'denied: ' + p;
                     return;
                   }}
-                  new Notification('LibreWolf fixture {unique}', {{
+                  new Notification('Zyphra fixture {unique}', {{
                     body: 'Web notification from the account-flow fixture.',
                     tag: 'lw-fixture-{unique}'
                   }});
@@ -362,7 +362,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return self.reply(
             401,
             page("Basic auth required", body),
-            extra=[("WWW-Authenticate", 'Basic realm="LibreWolf Fixture"')],
+            extra=[("WWW-Authenticate", 'Basic realm="Zyphra Fixture"')],
         )
 
     def handle_oauth_start(self):
@@ -515,7 +515,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 [
                     ("tel:+15550100", "tel: URI", "intent"),
                     ("mailto:tester@example.invalid", "mailto: URI", "intent"),
-                    ("market://details?id=com.palash.librewolfandroid", "market: URI", "intent"),
+                    ("market://details?id=com.zyphra.browser", "market: URI", "intent"),
                 ]
             )
         )
@@ -543,7 +543,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def handle_manifest(self):
         manifest = {
-            "name": "LibreWolf Account Fixture",
+            "name": "Zyphra Account Fixture",
             "short_name": "LW Fixture",
             "start_url": "/pwa",
             "scope": "/",

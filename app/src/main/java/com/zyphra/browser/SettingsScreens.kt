@@ -46,7 +46,7 @@ object SettingsScreens {
     const val DIAGNOSTICS = "diagnostics"
     const val PASSWORD_VAULT = "passwords_vault"
 
-    const val SOURCE_URL = "https://github.com/palashsuryavanshi/LibreWolfAndroid"
+    const val SOURCE_URL = "https://github.com/palashsuryavanshi/ZyphraAndroid"
 
     private val screens: List<Screen> = listOf(
         root(), privacy(), tracking(), fingerprinting(), cookies(), https(), dns(),

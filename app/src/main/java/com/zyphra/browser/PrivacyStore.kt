@@ -3,7 +3,7 @@ package com.zyphra.browser
 import android.content.Context
 import androidx.core.content.edit
 
-/** Persists LibreWolf-style privacy prefs. Defaults mirror source/settings/librewolf.cfg. */
+/** Persists Zyphra privacy prefs. Defaults mirror source/settings/librewolf.cfg. */
 class PrivacyStore(context: Context) {
     private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
@@ -15,12 +15,12 @@ class PrivacyStore(context: Context) {
         get() = prefs.getBoolean(K_SAN, ZyphraDefaults.SANITIZE_ON_SHUTDOWN)
         set(v) = prefs.edit { putBoolean(K_SAN, v) }
 
-    /** 0 = off, 1 = private tabs only, 2 = all tabs (LibreWolf default). */
+    /** 0 = off, 1 = private tabs only, 2 = all tabs (Zyphra default). */
     var httpsMode: Int
         get() = prefs.getInt(K_HTTPS, 2)
         set(v) = prefs.edit { putInt(K_HTTPS, v) }
 
-    /** GPC toggle (LibreWolf enables GPC by default). */
+    /** GPC toggle (Zyphra enables GPC by default). */
     var doNotTrack: Boolean
         get() = prefs.getBoolean(K_DNT, ZyphraDefaults.DO_NOT_TRACK)
         set(v) = prefs.edit { putBoolean(K_DNT, v) }
@@ -97,12 +97,12 @@ class PrivacyStore(context: Context) {
         get() = prefs.getInt(K_DOH, 0)
         set(v) = prefs.edit { putInt(K_DOH, v) }
 
-    /** 0 = off (LibreWolf default), 1 = default protection, 2 = max protection. */
+    /** 0 = off (Zyphra default), 1 = default protection, 2 = max protection. */
     var dohMode: Int
         get() = prefs.getInt(K_DOHM, 0)
         set(v) = prefs.edit { putInt(K_DOHM, v) }
 
-    /** ETP level: false = standard, true = strict (LibreWolf default). */
+    /** ETP level: false = standard, true = strict (Zyphra default). */
     var etpStrict: Boolean
         get() = prefs.getBoolean(K_ETP, true)
         set(v) = prefs.edit { putBoolean(K_ETP, v) }
@@ -279,12 +279,12 @@ class PrivacyStore(context: Context) {
 
     // ---- Search (address bar) ----
 
-    /** Master toggle for history/bookmark suggestions. LibreWolf default: off. */
+    /** Master toggle for history/bookmark suggestions. Zyphra default: off. */
     var searchSuggestions: Boolean
         get() = prefs.getBoolean(K_SUG, false)
         set(v) = prefs.edit { putBoolean(K_SUG, v) }
 
-    /** Allow suggestions while a private tab is active (LibreWolf default: off). */
+    /** Allow suggestions while a private tab is active (Zyphra default: off). */
     var searchSuggestionsPrivate: Boolean
         get() = prefs.getBoolean(K_SUG_P, false)
         set(v) = prefs.edit { putBoolean(K_SUG_P, v) }

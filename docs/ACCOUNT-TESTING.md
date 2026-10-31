@@ -46,7 +46,7 @@ Set `LW_PROTECTED_BYTES` to change the size of the cookie-protected download
 | `/errors/*` | DNS / refused / reset / TLS / HTTP error pages |
 
 Submissions (uploads, share posts) are appended to a log under
-`%TEMP%\librewolf-account-fixture\submissions.log` so a run can be checked
+`%TEMP%\zyphra-account-fixture\submissions.log` so a run can be checked
 without reading the screen.
 
 ### The authenticated-download case, in detail
@@ -67,7 +67,7 @@ Verify with:
 ```powershell
 # after signing in on the device and downloading the protected file
 adb -s <serial> shell md5sum /sdcard/Download/fixture-protected.bin
-Get-FileHash $env:TEMP\librewolf-account-fixture\protected.bin -Algorithm MD5
+Get-FileHash $env:TEMP\zyphra-account-fixture\protected.bin -Algorithm MD5
 ```
 
 The two hashes must match.

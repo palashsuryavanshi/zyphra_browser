@@ -21,7 +21,7 @@ CHUNK = b"LW-DOWNLOAD-TEST-" * 4096  # 72 KB
 TOTAL = SIZE_MB * 1024 * 1024
 PAYLOAD_DIR = os.environ.get(
     "LW_PAYLOAD_DIR",
-    os.path.join(tempfile.gettempdir(), "librewolf-download-test"),
+    os.path.join(tempfile.gettempdir(), "zyphra-download-test"),
 )
 
 PAGE = f"""<!doctype html>

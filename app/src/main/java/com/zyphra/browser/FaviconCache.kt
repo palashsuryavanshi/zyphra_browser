@@ -16,7 +16,7 @@ object FaviconCache {
     private val images = ConcurrentHashMap<String, Bitmap>()
     private val imageMisses = ConcurrentHashMap.newKeySet<String>()
     private val executor = Executors.newFixedThreadPool(2) { runnable ->
-        Thread(runnable, "librewolf-favicon").apply { isDaemon = true }
+        Thread(runnable, "zyphra-favicon").apply { isDaemon = true }
     }
     private val main = Handler(Looper.getMainLooper())
 

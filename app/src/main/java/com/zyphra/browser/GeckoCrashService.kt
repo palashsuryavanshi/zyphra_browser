@@ -18,7 +18,7 @@ class GeckoCrashService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     companion object {
-        private const val TAG = "LibreWolfCrash"
+        private const val TAG = "ZyphraCrash"
         private const val EXTRA_MINIDUMP = "minidump"
         private const val EXTRA_CRASH_TIME = "crashTime"
     }

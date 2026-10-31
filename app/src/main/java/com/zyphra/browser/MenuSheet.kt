@@ -12,7 +12,7 @@ import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 
-/** Bottom menu sheet mirroring the reference design (LibreWolf branding/actions). */
+/** Bottom menu sheet mirroring the reference design (Zyphra branding/actions). */
 class MenuSheet : BottomSheetDialogFragment() {
 
     var onHistory: () -> Unit = {}
@@ -70,7 +70,7 @@ class MenuSheet : BottomSheetDialogFragment() {
             startActivity(
                 Intent(
                     Intent.ACTION_VIEW,
-                    Uri.parse("https://github.com/palashsuryavanshi/LibreWolfAndroid/releases"),
+                    Uri.parse("https://github.com/palashsuryavanshi/ZyphraAndroid/releases"),
                 ),
             )
         }

@@ -16,7 +16,7 @@ Run:
 Then:
     adb reverse tcp:8788 tcp:8788
     adb shell am start -a android.intent.action.VIEW \
-        -d http://127.0.0.1:8788/ -n com.palash.librewolfandroid/.MainActivity
+        -d http://127.0.0.1:8788/ -n com.zyphra.browser/.MainActivity
 """
 
 import http.server
@@ -171,7 +171,7 @@ def profile_form():
 
 class Handler(http.server.BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
-    server_version = "LibreWolfP1Fixture/1.0"
+    server_version = "ZyphraP1Fixture/1.0"
 
     def log_message(self, fmt, *args):
         sys.stdout.write("%s %s\n" % (self.address_string(), fmt % args))

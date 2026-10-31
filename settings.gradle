@@ -15,5 +15,5 @@ dependencyResolutionManagement {
         }
     }
 }
-rootProject.name = "LibreWolfAndroid"
+rootProject.name = "ZyphraAndroid"
 include(":app")

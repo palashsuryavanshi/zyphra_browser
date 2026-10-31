@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">LibreWolf</string>
+    <string name="app_name">Zyphra Browser</string>
     <string name="url_hint">Search or enter address</string>
 
     <!-- Address-bar connection state. Both are read from the engine's
@@ -46,9 +46,9 @@
     <string name="downloads">Downloads</string>
     <string name="customise_homepage">Customise homepage</string>
     <string name="whats_new">What’s new</string>
-    <string name="quit_app">Quit LibreWolf</string>
+    <string name="quit_app">Quit Zyphra</string>
     <string name="goto_title">Enter address</string>
-    <string name="about_title">About LibreWolf Android</string>
+    <string name="about_title">About Zyphra Browser</string>
     <string name="open_site">Open site</string>
     <string name="today">Today</string>
     <string name="yesterday">Yesterday</string>
@@ -171,7 +171,7 @@
     <string name="settings_diagnostics_sub">Engine build, refresh rate, memory and storage</string>
     <string name="diag_engine">Engine</string>
     <string name="diag_engine_version">Engine version (Firefox base)</string>
-    <string name="diag_zyphra_release">LibreWolf release</string>
+    <string name="diag_zyphra_release">Zyphra release</string>
     <string name="diag_app_version">App version</string>
     <string name="diag_abi">Architecture</string>
     <string name="diag_device">Device</string>
@@ -193,8 +193,8 @@
     <string name="diag_take_effect">Takes effect on the next launch</string>
     <string name="settings_lna">Local Network Access / Nearby Devices</string>
     <string name="settings_about">About</string>
-    <string name="settings_github">LibreWolf on GitHub</string>
-    <string name="settings_about_app">About LibreWolf</string>
+    <string name="settings_github">Zyphra on GitHub</string>
+    <string name="settings_about_app">About Zyphra</string>
     <string name="https_off">Off</string>
     <string name="https_private">On in private tabs only</string>
     <string name="https_all">On in all tabs</string>
@@ -219,7 +219,7 @@
     <string name="password_hidden">Password is hidden. Copy it only when you are ready to paste it into the site.</string>
     <string name="copy_password">Copy password</string>
     <string name="save">Save</string>
-    <string name="vault_note">Stored encrypted on this device only. LibreWolf disables the built-in password manager and Sync.</string>
+    <string name="vault_note">Stored encrypted on this device only. Zyphra disables the built-in password manager and Sync.</string>
     <string name="install">Install</string>
     <string name="allow">Allow</string>
     <string name="deny">Deny</string>
@@ -565,7 +565,7 @@
     <string name="about_browser">Browser version</string>
     <string name="about_engine">Engine</string>
     <string name="about_engine_sub">GeckoView, Firefox base</string>
-    <string name="about_zyphra_release">LibreWolf release</string>
+    <string name="about_zyphra_release">Zyphra release</string>
     <string name="about_licences">Open source licences</string>
     <string name="about_licences_sub">What this app is built from</string>
     <string name="about_source">Source code</string>
@@ -573,7 +573,7 @@
     <string name="about_report_sub">Open an issue</string>
     <string name="about_privacy_policy">Privacy policy</string>
     <string name="about_privacy_policy_sub">What leaves this device</string>
-    <string name="licence_app">LibreWolf Android</string>
+    <string name="licence_app">Zyphra Browser</string>
     <string name="licence_note">GeckoView and its dependencies are licensed by Mozilla and the Apache and Kotlin projects. No analytics, advertising or crash-reporting SDK is present in this build.</string>
     <string name="privacy_policy_body">Nothing leaves this device unless you ask it to.\n\nSearch suggestions are sent to the search provider you chose, and only while suggestions are on. The DNS provider you choose can see the names you look up. Extension updates are fetched from the add-on source you added them from.\n\nThere is no account, no sync, no analytics and no crash upload. Crash reports are written to this device only, and you can read them in Diagnostics.</string>
 
@@ -649,9 +649,9 @@
     <string name="close_tabs_confirm">Close %1$d tabs?</string>
 
     <!-- First-run walkthrough -->
-    <string name="onboarding_welcome_title">Welcome to LibreWolf</string>
+    <string name="onboarding_welcome_title">Welcome to Zyphra</string>
     <string name="onboarding_welcome_body">A browser built for people who would rather not be tracked. It runs on the real Gecko engine, the same one Firefox uses, so websites get the engine they expect.</string>
-    <string name="onboarding_unofficial">Unofficial. LibreWolf is a separate project from the LibreWolf desktop browser, and this app is not affiliated with either.</string>
+    <string name="onboarding_unofficial">Unofficial. Zyphra is an independent browser whose privacy defaults are inspired by the LibreWolf desktop project, and it is not affiliated with LibreWolf or Mozilla.</string>
     <string name="onboarding_protection_title">Protection is already on</string>
     <string name="onboarding_protection_body">You do not have to configure anything to be private. These are the defaults, and every one of them is yours to change later.</string>
     <string name="onboarding_bullet_tracking">Tracking protection, and fingerprinting resistance</string>
@@ -660,7 +660,7 @@
     <string name="onboarding_bullet_private">Private tabs that forget themselves when you close them</string>
     <string name="onboarding_bullet_telemetry">No accounts, no telemetry, nothing sold to anyone</string>
     <string name="onboarding_notifications_title">Notifications</string>
-    <string name="onboarding_notifications_body">LibreWolf asks for notification access for two things: to show download progress and to let a website show its own notifications when you allow it. It is asked once. If you say no, you will not be asked again by a site, and you can turn it on later in Settings.</string>
+    <string name="onboarding_notifications_body">Zyphra asks for notification access for two things: to show download progress and to let a website show its own notifications when you allow it. It is asked once. If you say no, you will not be asked again by a site, and you can turn it on later in Settings.</string>
     <string name="onboarding_notifications_allow">Allow notifications</string>
     <string name="onboarding_notifications_later">Not now</string>
     <string name="onboarding_notifications_granted">Notifications are on.</string>
@@ -668,9 +668,9 @@
     <string name="onboarding_notifications_already">Notifications are already on.</string>
     <string name="onboarding_ready_title">You are set</string>
     <string name="onboarding_ready_body">Open the menu for private tabs, downloads, bookmarks, history and saved logins. Settings is in there too, and nothing is hidden behind a sign-in.</string>
-    <string name="onboarding_default_browser">Set LibreWolf as my default browser</string>
-    <string name="onboarding_default_browser_sub">Opens links from other apps straight in LibreWolf</string>
-    <string name="onboarding_default_browser_done">LibreWolf is now your default browser.</string>
+    <string name="onboarding_default_browser">Set Zyphra as my default browser</string>
+    <string name="onboarding_default_browser_sub">Opens links from other apps straight in Zyphra</string>
+    <string name="onboarding_default_browser_done">Zyphra is now your default browser.</string>
     <string name="onboarding_default_browser_declined">No problem. You can ask again any time from Settings.</string>
     <string name="onboarding_next">Next</string>
     <string name="onboarding_skip">Skip</string>

@@ -14,7 +14,7 @@ import org.junit.runner.RunWith
  * tab rather than replacing the current tab.
  *
  * These tests send a real Android intent to the app, simulating what happens
- * when another app (e.g., a messaging app) sends a web link to LibreWolf.
+ * when another app (e.g., a messaging app) sends a web link to Zyphra.
  */
 @RunWith(AndroidJUnit4::class)
 @LargeTest

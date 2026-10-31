@@ -19,14 +19,14 @@ object BrowserErrorPage {
             WebRequestError.ERROR_SECURITY_SSL,
             WebRequestError.ERROR_SECURITY_BAD_CERT,
             WebRequestError.ERROR_BAD_HSTS_CERT,
-            -> "A secure connection could not be established. LibreWolf will not bypass certificate validation."
+            -> "A secure connection could not be established. Zyphra will not bypass certificate validation."
             WebRequestError.ERROR_HTTPS_ONLY -> "This page is not available over a secure HTTPS connection."
             WebRequestError.ERROR_SAFEBROWSING_MALWARE_URI,
             WebRequestError.ERROR_SAFEBROWSING_HARMFUL_URI,
-            -> "LibreWolf blocked this page because it was classified as malicious."
+            -> "Zyphra blocked this page because it was classified as malicious."
             WebRequestError.ERROR_SAFEBROWSING_PHISHING_URI,
             WebRequestError.ERROR_SAFEBROWSING_UNWANTED_URI,
-            -> "LibreWolf blocked this page because it was classified as deceptive or unwanted."
+            -> "Zyphra blocked this page because it was classified as deceptive or unwanted."
             WebRequestError.ERROR_PROXY_CONNECTION_REFUSED,
             WebRequestError.ERROR_UNKNOWN_PROXY_HOST,
             -> "The configured proxy could not be reached."

@@ -61,13 +61,13 @@ jobs:
       - name: Upload APKs
         uses: actions/upload-artifact@v4
         with:
-          name: librewolf-debug-apks
+          name: zyphra-debug-apks
           path: app/build/outputs/apk/debug/*.apk
 
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: librewolf-release-unsigned
+          name: zyphra-release-unsigned
           path: |
             app/build/outputs/apk/release/*.apk
             app/build/outputs/bundle/release/*.aab

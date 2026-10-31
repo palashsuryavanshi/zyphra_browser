@@ -1,6 +1,6 @@
 package com.zyphra.browser
 
-/** LibreWolf desktop defaults ported from source/settings/librewolf.cfg + distribution/policies.json. */
+/** Privacy defaults ported from desktop LibreWolf's librewolf.cfg + distribution/policies.json. */
 object ZyphraDefaults {
     const val HOMEPAGE = "https://librewolf.net"
     const val SUPPORT_URL = "https://support.librewolf.net/"
@@ -17,7 +17,7 @@ object ZyphraDefaults {
     // librewolf.cfg DoH provider list (network.trr.uri default = Quad9 no-filter).
     data class DohProvider(val name: String, val uri: String)
     val DOH_PROVIDERS = listOf(
-        DohProvider("Quad9 (No Filtering) — LibreWolf default", "https://dns10.quad9.net/dns-query"),
+        DohProvider("Quad9 (No Filtering) — Zyphra default", "https://dns10.quad9.net/dns-query"),
         DohProvider("Quad9 (Malware blocking)", "https://dns.quad9.net/dns-query"),
         DohProvider("LibreDNS (No Filtering)", "https://doh.libredns.gr/dns-query"),
         DohProvider("LibreDNS (Adblocking)", "https://doh.libredns.gr/noads"),

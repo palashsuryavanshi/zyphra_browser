@@ -106,12 +106,12 @@ Categories:
   - Security
 
 License: MPL-2.0
-SourceCode: https://github.com/palashsuryavanshi/LibreWolfAndroid
-Changelog: https://github.com/palashsuryavanshi/LibreWolfAndroid/releases
-IssueTracker: https://github.com/palashsuryavanshi/LibreWolfAndroid/issues
+SourceCode: https://github.com/palashsuryavanshi/ZyphraAndroid
+Changelog: https://github.com/palashsuryavanshi/ZyphraAndroid/releases
+IssueTracker: https://github.com/palashsuryavanshi/ZyphraAndroid/issues
 
 RepoType: git
-Repo: https://github.com/palashsuryavanshi/LibreWolfAndroid.git
+Repo: https://github.com/palashsuryavanshi/ZyphraAndroid.git
 
 # No AntiFeatures. Play Services are excluded, so none of the ten apply.
 # No AllowedAPKSigningKeys: F-Droid signs with its own key.
@@ -176,15 +176,12 @@ The only non-FOSS dependency is the one that is removed.
 
 These are not code problems and were not resolved here.
 
-1. **Trademark and branding — the most likely reason for rejection.**
+1. **Trademark and branding.**
    The inclusion policy says apps "must not infringe third party rights,
-   including … trademarks", and "need to obtain necessary trademark and
-   copyright permissions". This project reuses LibreWolf's name and logo
-   while stating in its own README that it is "not affiliated with, endorsed
-   by, or supported by the LibreWolf project or Mozilla". On its face that is
-   using another project's marks without permission. F-Droid will likely ask
-   for evidence of permission, or ask for a distinct name and icon. **Resolve
-   this before filing.**
+   including … trademarks". This used to be the main risk when the app reused
+   LibreWolf's name and logo; the Zyphra rebrand resolves it — the app now uses
+   its own name and icon, and states that it is not affiliated with the
+   LibreWolf project or Mozilla.
 
 2. **GeckoView comes from `maven.mozilla.org`, which is not a trusted
    repository.** The policy trusts Maven Central, Google Maven, OSS Sonatype,
@@ -203,8 +200,8 @@ These are not code problems and were not resolved here.
    optional. There are suitable images in `assets/` and `logo/` to use if
    wanted.
 
-5. **Version name.** The app's own label is `LibreWolf`; the F-Droid title is
-   `LibreWolf Android` to match the repository. Worth settling, given item 1.
+5. **Version name.** The app's own label is `Zyphra Browser`, matching the
+   F-Droid title. Settled by the Zyphra rebrand.
 
 ## Reproducing the checks
 

@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 data class HistoryEntry(val title: String, val url: String, val time: Long)
 
 /**
- * Local browsing history (device-only, no sync — LibreWolf policy).
+ * Local browsing history (device-only, no sync — Zyphra policy).
  *
  * ## Why this is not a plain SharedPreferences read-modify-write any more
  *
@@ -64,7 +64,7 @@ class HistoryStore(context: Context) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     private val io = Executors.newSingleThreadExecutor { r ->
-        Thread(r, "librewolf-history").apply {
+        Thread(r, "zyphra-history").apply {
             isDaemon = true
             // History writing must never compete with rendering.
             priority = Thread.MIN_PRIORITY

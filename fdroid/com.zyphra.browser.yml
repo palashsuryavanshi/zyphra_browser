@@ -3,12 +3,12 @@ Categories:
   - Security
 
 License: MPL-2.0
-SourceCode: https://github.com/palashsuryavanshi/LibreWolfAndroid
-Changelog: https://github.com/palashsuryavanshi/LibreWolfAndroid/releases
-IssueTracker: https://github.com/palashsuryavanshi/LibreWolfAndroid/issues
+SourceCode: https://github.com/palashsuryavanshi/ZyphraAndroid
+Changelog: https://github.com/palashsuryavanshi/ZyphraAndroid/releases
+IssueTracker: https://github.com/palashsuryavanshi/ZyphraAndroid/issues
 
 RepoType: git
-Repo: https://github.com/palashsuryavanshi/LibreWolfAndroid.git
+Repo: https://github.com/palashsuryavanshi/ZyphraAndroid.git
 
 # No AntiFeatures. Google Play Services are excluded from these builds (see
 # below), and none of F-Droid's ten apply: Ads, DisabledAlgorithm, KnownVuln,
@@ -40,13 +40,12 @@ MaintainerNotes: |
 
   <h3>Please review: branding and trademark</h3>
 
-  <p>This app reuses LibreWolf's name and logo, while its own README states
-  that it is "not affiliated with, endorsed by, or supported by the LibreWolf
-  project or Mozilla". F-Droid's policy requires that apps not infringe third
-  party rights including trademarks, and that they hold the necessary
-  permission. <b>The submitter has not supplied evidence of trademark
-  permission.</b> Flagging this explicitly rather than hoping it is not
-  noticed; it may need a distinct name and icon before inclusion.</p>
+  <p>This app was previously submitted under the LibreWolf name and logo. It has
+  since been rebranded as <b>Zyphra</b> with its own name and icon, and its
+  README states that it is "not affiliated with, endorsed by, or supported by
+  the LibreWolf project or Mozilla". The rebrand is intended to resolve the
+  trademark question; the upstream LibreWolf project is credited as the design
+  reference for the privacy defaults only.</p>
 
   <h3>Maven repository that is not on the trusted list</h3>
 

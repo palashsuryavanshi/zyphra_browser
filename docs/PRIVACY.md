@@ -1,4 +1,4 @@
-# Privacy model — LibreWolf Android
+# Privacy model — Zyphra Browser
 
 Written for Phase 6. Every statement here was traced in the source or measured on
 a device; where something is a limitation rather than a guarantee, it says so.

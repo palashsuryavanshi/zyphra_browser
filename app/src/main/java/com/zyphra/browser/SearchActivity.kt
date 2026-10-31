@@ -13,7 +13,7 @@ import androidx.appcompat.widget.SwitchCompat
 /**
  * Settings > Search, mirroring the reference layout: default engine, engine
  * management, widget, suggestion groups and address-bar preferences.
- * The "search synchronised tabs" row is intentionally absent - LibreWolf
+ * The "search synchronised tabs" row is intentionally absent - Zyphra
  * disables Firefox Sync.
  */
 class SearchActivity : AppCompatActivity() {
