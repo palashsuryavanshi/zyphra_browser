@@ -1,22 +1,25 @@
 <p align="center">
-  <img src="logo/app-icon.png" width="112" alt="LibreWolf Android app icon">
+  <img src="logo/app-icon.png" width="112" alt="Zyphra Browser app icon">
 </p>
 
-# LibreWolf Android
+# Zyphra Browser
 
-An Android privacy browser built on the **GeckoView** engine — the same engine as
-Firefox Desktop — with the privacy posture of [LibreWolf](https://librewolf.net).
+**Zyphra Browser** is a private, GeckoView-powered web browser for Android — the
+same engine as Firefox Desktop — with privacy defaults inspired by
+[LibreWolf Desktop](https://librewolf.net). No telemetry, no tracking, no
+accounts.
 
 ---
 
 > ## ⚠️ Unofficial community project
 >
-> **This is not LibreWolf.** It is an independent, community-run port and it is
-> **not affiliated with, endorsed by, or supported by the LibreWolf project or
-> Mozilla**. No part of this repository is reviewed or audited by them.
+> **Zyphra Browser is an independent project** and is **not affiliated with,
+> endorsed by, or supported by the LibreWolf project or Mozilla**. No part of
+> this repository is reviewed or audited by them.
 >
-> It is *inspired by* LibreWolf Desktop and reuses LibreWolf's branding and its
-> published privacy defaults as the design reference. The upstream project is:
+> It is *inspired by* LibreWolf Desktop: its published privacy defaults are the
+> design reference, but Zyphra uses its own name and branding. The upstream
+> project is:
 >
 > | | |
 > |---|---|
@@ -33,7 +36,11 @@ Firefox Desktop — with the privacy posture of [LibreWolf](https://librewolf.ne
 
 ## Which build should I install?
 
-There is one: **[v1.2beta3](https://github.com/palashsuryavanshi/LibreWolfAndroid/releases/tag/v1.2beta3)**,
+> **Note:** release assets are being refreshed for the Zyphra rebrand. The old
+> `app-*-release.apk` files have been removed; the next signed release carries
+> the rebranded build.
+
+There is one: **[v1.2beta3](https://github.com/palashsuryavanshi/ZyphraAndroid/releases/tag/v1.2beta3)**,
 a full release signed with the project's release key.
 
 | | |
@@ -151,7 +158,7 @@ All three taken on a Pixel 9a running v1.2beta2, dark theme.
 |---|---|---|
 | <img src="assets/screenshot-start-page.png" width="240" alt="Start page: LibreWolf logo top left, wordmark top right, rounded search bar and menu at the bottom"> | <img src="assets/screenshot-extensions.png" width="240" alt="Extensions screen listing fourteen add-ons available to install, each with a plus button"> | <img src="assets/screenshot-privacy-settings.png" width="240" alt="Privacy and Security settings showing tracking protection, fingerprinting, cookies, HTTPS-only, secure DNS and the privacy report"> |
 
-The **start page** carries the LibreWolf logo top-left and the wordmark
+The **start page** carries the Zyphra logo top-left and the wordmark
 top-right, with the address bar, tab count and menu along the bottom.
 
 The **Extensions** screen offers fourteen add-ons from Mozilla AMO as tappable
@@ -312,10 +319,10 @@ in-app updater. Nothing is sent anywhere except the sites you visit.
 
 ### Interface
 
-- Firefox-style UI: official LibreWolf logo, a private-tab button, a
+- Firefox-style UI: Zyphra logo, a private-tab button, a
   tracker-blocked pill, and a bottom toolbar (engine picker | address | tab count
   | menu).
-- The start page carries the LibreWolf logo top-left and the wordmark top-right.
+- The start page carries the Zyphra logo top-left and the wordmark top-right.
 - Four page actions — **Reload, Homepage, Back, Share** — pinned to the foot of
   the menu sheet, outside the scroll area.
 - Menu bottom sheet, two-column tab-tray grid, grouped settings, and dedicated
@@ -439,7 +446,7 @@ CI produces unsigned artifacts and has no key.
 
 ## Download
 
-**[`v1.2beta3` release page](https://github.com/palashsuryavanshi/LibreWolfAndroid/releases/tag/v1.2beta3)**
+**[`v1.2beta3` release page](https://github.com/palashsuryavanshi/ZyphraAndroid/releases/tag/v1.2beta3)**
 
 Pick the split matching your device:
 
@@ -559,7 +566,7 @@ produced the APKs in the release. That was deliberate.
 The `v1.0` and `v1.1` tags were anchors pointing at the squashed root, not at the
 commits those APKs came from. Both releases have since been removed so that the
 `1.2` line is the single current build; the exact source for them is preserved in
-a private archive, `palashsuryavanshi/LibreWolfAndroid-release-history`, on
+a private archive, `palashsuryavanshi/ZyphraAndroid-release-history`, on
 branches `release-history` (v1.1) and `v1.0-source` (v1.0).
 
 The signing key has never changed, so the certificate fingerprint above has been
@@ -881,5 +888,5 @@ meant to be checkable.
 ## License
 
 Mozilla Public License 2.0 — see [LICENSE](LICENSE), the same licence as
-LibreWolf Desktop. The LibreWolf logo and name are the property of the LibreWolf
-project and are used here to identify the inspiration for this unofficial port.
+LibreWolf Desktop. Zyphra is an independent project; the Zyphra name and logo
+belong to this project, and LibreWolf's name and logo are not used.
