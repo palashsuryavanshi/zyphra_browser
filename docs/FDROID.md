@@ -106,12 +106,12 @@ Categories:
   - Security
 
 License: MPL-2.0
-SourceCode: https://github.com/palashsuryavanshi/ZyphraAndroid
-Changelog: https://github.com/palashsuryavanshi/ZyphraAndroid/releases
-IssueTracker: https://github.com/palashsuryavanshi/ZyphraAndroid/issues
+SourceCode: https://github.com/palashsuryavanshi/zyphra_browser
+Changelog: https://github.com/palashsuryavanshi/zyphra_browser/releases
+IssueTracker: https://github.com/palashsuryavanshi/zyphra_browser/issues
 
 RepoType: git
-Repo: https://github.com/palashsuryavanshi/ZyphraAndroid.git
+Repo: https://github.com/palashsuryavanshi/zyphra_browser.git
 
 # No AntiFeatures. Play Services are excluded, so none of the ten apply.
 # No AllowedAPKSigningKeys: F-Droid signs with its own key.

@@ -15,5 +15,5 @@ dependencyResolutionManagement {
         }
     }
 }
-rootProject.name = "ZyphraAndroid"
+rootProject.name = "zyphra_browser"
 include(":app")

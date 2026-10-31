@@ -23,7 +23,7 @@ telemetry, no tracking, no accounts.
 
 ## Which build should I install?
 
-There is one: **[v1.0](https://github.com/palashsuryavanshi/ZyphraAndroid/releases/tag/v1.0)**,
+There is one: **[v1.0](https://github.com/palashsuryavanshi/zyphra_browser/releases/tag/v1.0)**,
 the first release, signed with the project's release key.
 
 | | |
@@ -406,7 +406,7 @@ a release-keyed one. CI produces unsigned artifacts and has no key.
 
 ## Download
 
-**[`v1.0` release page](https://github.com/palashsuryavanshi/ZyphraAndroid/releases/tag/v1.0)**
+**[`v1.0` release page](https://github.com/palashsuryavanshi/zyphra_browser/releases/tag/v1.0)**
 
 Pick the split matching your device:
 

@@ -2,8 +2,8 @@ package com.zyphra.browser
 
 /** The app's hardening baseline: engine-level privacy defaults. */
 object ZyphraDefaults {
-    const val HOMEPAGE = "https://github.com/palashsuryavanshi/ZyphraAndroid"
-    const val UPDATE_URL = "https://github.com/palashsuryavanshi/ZyphraAndroid/releases"
+    const val HOMEPAGE = "https://github.com/palashsuryavanshi/zyphra_browser"
+    const val UPDATE_URL = "https://github.com/palashsuryavanshi/zyphra_browser/releases"
 
     // Baseline: strict tracking protection, sanitize on shutdown, no disk cache,
     // HTTPS-only, RFP, no telemetry/sync. (Safe Browsing is disabled outright;

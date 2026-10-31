@@ -70,7 +70,7 @@ class MenuSheet : BottomSheetDialogFragment() {
             startActivity(
                 Intent(
                     Intent.ACTION_VIEW,
-                    Uri.parse("https://github.com/palashsuryavanshi/ZyphraAndroid/releases"),
+                    Uri.parse("https://github.com/palashsuryavanshi/zyphra_browser/releases"),
                 ),
             )
         }
