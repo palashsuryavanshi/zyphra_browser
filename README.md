@@ -463,14 +463,14 @@ Verifies
 Verified using v1 scheme (JAR signing): false
 Verified using v2 scheme (APK Signature Scheme v2): true
 Verified using v3 scheme (APK Signature Scheme v3): true
-Signer #1 certificate SHA-256 digest: 8b0411cf...031e164
+Signer #1 certificate SHA-256 digest: 138c5c38...5d37a6
 ```
 
 Expect v2 and v3 true and v1 false.
 
 ```
 Signing certificate SHA-256:
-8b0411cf924ba0dbd7a5e0eba352dc7435d5ba252a988abd4ef5cd031e164
+138c5c38e3087b6e0688db23f554b991994563a5a124c4543a198b2d5d37a6
 ```
 
 If that digest does not match, do not install it.
