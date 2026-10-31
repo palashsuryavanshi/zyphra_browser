@@ -5,32 +5,19 @@
 # Zyphra Browser
 
 **Zyphra Browser** is a private, GeckoView-powered web browser for Android — the
-same engine as Firefox Desktop — with privacy defaults inspired by
-[LibreWolf Desktop](https://librewolf.net). No telemetry, no tracking, no
-accounts.
+same engine as Firefox Desktop — with a hardened privacy configuration. No
+telemetry, no tracking, no accounts.
 
 ---
 
-> ## ⚠️ Unofficial community project
+> ## ⚠️ Independent community project
 >
 > **Zyphra Browser is an independent project** and is **not affiliated with,
-> endorsed by, or supported by the LibreWolf project or Mozilla**. No part of
-> this repository is reviewed or audited by them.
+> endorsed by, or supported by Mozilla**. No part of this repository is
+> reviewed or audited by them.
 >
-> It is *inspired by* LibreWolf Desktop: its published privacy defaults are the
-> design reference, but Zyphra uses its own name and branding. The upstream
-> project is:
->
-> | | |
-> |---|---|
-> | **Upstream project** | [librewolf.net](https://librewolf.net) |
-> | **Upstream source (canonical)** | [codeberg.org/librewolf](https://codeberg.org/librewolf) |
-> | **Upstream source (GitHub mirror)** | [github.com/librewolf-community/browser-linux](https://github.com/librewolf-community/browser-linux) — LibreWolf's canonical home is Codeberg; the GitHub repository redirects here |
->
-> If you want the real LibreWolf on a desktop, use the upstream releases. If you
-> want a Firefox-engine browser on Android, this project takes no money, sends
-> nothing anywhere, and has no analytics — but you are running an unofficial
-> build, and you should treat it that way.
+> This project takes no money, sends nothing anywhere, and has no analytics.
+> You are running a community build, and you should treat it that way.
 
 ---
 
@@ -117,11 +104,11 @@ without a camera, microphone or GPS.
 
 ## What this is, and what it is not
 
-The LibreWolf desktop tree is a Firefox build system for Linux, Windows and
-macOS. **It cannot be compiled into an APK.** This project is therefore a native
-Android browser written in Kotlin: it takes LibreWolf's *privacy configuration*
-as its specification and implements the Android browser shell around GeckoView,
-which is the same rendering engine Firefox uses.
+This project is a native Android browser written in Kotlin, built around the
+GeckoView engine — the same rendering engine Firefox uses. Its privacy
+configuration is a hardened baseline: strict tracking protection, query
+stripping, HTTPS-only mode, encrypted DNS and no telemetry, implemented in
+`ZyphraDefaults.kt` and applied at engine construction.
 
 That distinction matters, so to be plain about it:
 
@@ -131,9 +118,8 @@ That distinction matters, so to be plain about it:
   prompts, permissions, downloads, history, bookmarks, the password vault,
   settings, media integration, and system integration.
 
-It is a port *in spirit and in privacy posture*, not a recompilation of upstream
-source. Where the two differ, the mapping is documented in
-[Mapping from desktop LibreWolf](#mapping-from-desktop-librewolf).
+Where the engine does not expose a switch, the mapping is documented in
+[How the defaults are implemented](#how-the-defaults-are-implemented).
 
 **Engine:** GeckoView `147.0.20260212191108` — the newest stable whose AAR
 targets `compileSdk 37`. Versions 154/155 require SDK 37.1, which has no stable
@@ -156,7 +142,7 @@ All three taken on a Pixel 9a running v1.2beta2, dark theme.
 
 | Start page | Add-ons | Privacy settings |
 |---|---|---|
-| <img src="assets/screenshot-start-page.png" width="240" alt="Start page: LibreWolf logo top left, wordmark top right, rounded search bar and menu at the bottom"> | <img src="assets/screenshot-extensions.png" width="240" alt="Extensions screen listing fourteen add-ons available to install, each with a plus button"> | <img src="assets/screenshot-privacy-settings.png" width="240" alt="Privacy and Security settings showing tracking protection, fingerprinting, cookies, HTTPS-only, secure DNS and the privacy report"> |
+| <img src="assets/screenshot-start-page.png" width="240" alt="Start page: app logo top left, wordmark top right, rounded search bar and menu at the bottom"> | <img src="assets/screenshot-extensions.png" width="240" alt="Extensions screen listing fourteen add-ons available to install, each with a plus button"> | <img src="assets/screenshot-privacy-settings.png" width="240" alt="Privacy and Security settings showing tracking protection, fingerprinting, cookies, HTTPS-only, secure DNS and the privacy report"> |
 
 The **start page** carries the Zyphra logo top-left and the wordmark
 top-right, with the address bar, tab count and menu along the bottom.
@@ -218,13 +204,13 @@ in-app updater. Nothing is sent anywhere except the sites you visit.
 - **Strict tracking protection** by default, with per-category customisation.
 - **Total Cookie Protection** — third-party cookies partitioned and isolated to
   the site you are on. Cookie banner handling is configurable.
-- **Query-parameter stripping** using LibreWolf's own strip and allow lists, so
+- **Query-parameter stripping** using a built-in strip and allow list, so
   tracking identifiers are removed from the URL before the request goes out.
 - **HTTPS-only mode**, with a strict variant that upgrades every navigation.
   Certificate validation is never bypassed, and there is no "click through the
   warning" path.
-- **Secure DNS (DoH)** with a provider picker — Quad9, LibreDNS, Wikimedia,
-  DNS4All, Mullvad — and TRR left disabled, matching the LibreWolf default.
+- **Secure DNS (DoH)** with a provider picker — Quad9, Wikimedia,
+  DNS4All, Mullvad — and TRR left disabled by default.
 - **Global Privacy Control** (`Sec-GPC`) sent to sites that honour it.
 - **Safe Browsing** against phishing and malware, with threats counted and
   reported separately from trackers.
@@ -423,7 +409,7 @@ GeckoView's.
 It fires only on that narrow path, and on a device where the system WebView has
 never visited the site it returns null and nothing is attached. But on a device
 where Chrome or another WebView-based browser has been used, those cookies can
-ride along on a LibreWolf download request. The cookies go to the site that owns
+ride along on a Zyphra download request. The cookies go to the site that owns
 them, so nothing is disclosed to a third party, but it is still this app reading
 a store it does not own. `android.webkit.URLUtil.guessFileName` is also used,
 which is only string manipulation and raises nothing.
@@ -541,12 +527,11 @@ The application id is **`com.zyphra.browser`**. Android identifies apps
 by package name, so **a rename means a different app** — the two cannot update
 into each other, and the only path is uninstall, which deletes the data.
 
-- It was previously **`net.librewolf.android`**, which was the wrong namespace to
-  ship under: `net.librewolf` is Mozilla/LibreWolf's domain, and a package name
-  is a claim about who owns the code. **No GitHub release has ever been published
-  under that id** — if you have a build from it, it came from somewhere other
-  than this project's releases.
-- `com.palash.librewolf-android` was tried first and **cannot exist**: AAPT
+- A previous id derived from a domain this project does not own was rejected
+  early on: a package name is a claim about who owns the code. **No GitHub
+  release has ever been published under that id** — if you have a build from
+  one, it came from somewhere other than this project's releases.
+- A hyphenated spelling was tried first and **cannot exist**: AAPT
   rejects a hyphen in a manifest package outright, because a package name is a
   Java package name.
 
@@ -705,12 +690,12 @@ a hierarchy.
 ```
 app/src/main/
 ├── AndroidManifest.xml          10 permissions, no required hardware features
-├── java/com/palash/librewolfandroid/
+├── java/com/zyphra/browser/
 │   ├── ZyphraApplication.kt        Application entry point
 │   ├── MainActivity.kt        (2220) the browser itself: engine wiring, tabs,
 │   │                                 address bar, menu, prompts, downloads
-│   ├── ZyphraDefaults.kt   (128)  the privacy specification, ported from
-│   │                                 desktop librewolf.cfg and policies.json
+│   ├── ZyphraDefaults.kt   (128)  the privacy specification: the hardening
+│   │                                 baseline, applied at engine construction
 │   ├── BrowserPromptDelegate.kt       GeckoView prompt callbacks → Android dialogs
 │   ├── BrowserPermissionDelegate.kt   per-site permission decisions
 │   ├── BrowserErrorPage.kt            local TLS / network / Safe Browsing errors
@@ -785,15 +770,15 @@ platform.
 
 ---
 
-## Mapping from desktop LibreWolf
+## How the defaults are implemented
 
-| Desktop LibreWolf | This app |
+| Hardening baseline | This app |
 |---|---|
-| `settings/librewolf.cfg` — strict tracking protection, dFPI, query stripping, HTTPS-only, Safe Browsing, GPC | Engine settings in `MainActivity.buildRuntimeSettings()`: ETP `STRICT`, `ACCEPT_FIRST_PARTY_AND_ISOLATE_OTHERS` cookies plus partitioning, native query-parameter stripping with the LibreWolf strip/allow lists, configurable HTTPS-only, Safe Browsing, and `setGlobalPrivacyControl` |
+| Strict tracking protection, dFPI, query stripping, HTTPS-only, Safe Browsing, GPC | Engine settings in `MainActivity.buildRuntimeSettings()`: ETP `STRICT`, `ACCEPT_FIRST_PARTY_AND_ISOLATE_OTHERS` cookies plus partitioning, native query-parameter stripping with the built-in strip/allow lists, configurable HTTPS-only, Safe Browsing, and `setGlobalPrivacyControl` |
 | RFP (`privacy.resistFingerprinting`) | Not wired — GeckoView 147 exposes no fingerprinting-protection API. Returns with a 154/155 engine once SDK 37.1 is stable. |
-| `settings/librewolf.cfg` DoH list (Quad9, LibreDNS, Wikimedia, DNS4All, Mullvad) and `network.trr.mode = 5` | DoH selector in Settings; the engine gets `setTrustedRecursiveResolverUri` with `TRR_MODE_DISABLED`, matching the LibreWolf default |
-| `settings/distribution/policies.json` — DisableTelemetry, HttpsOnlyMode, LNA, no remote debugging | No telemetry SDK; Local Network Access guards on; Gecko form autofill is wired to the app's encrypted Android Keystore vault; remote debugging is absent from release builds and forced off at runtime |
-| `settings/librewolf.cfg` — sanitize on shutdown | Engine-level `StorageController.clearData(ALL)` plus local history, session and permission cleanup on erase and shutdown; private sessions use the engine's real private mode |
+| DoH list (Quad9, Wikimedia, DNS4All, Mullvad) and `network.trr.mode = 5` | DoH selector in Settings; the engine gets `setTrustedRecursiveResolverUri` with `TRR_MODE_DISABLED` by default |
+| `distribution/policies.json` — DisableTelemetry, HttpsOnlyMode, LNA, no remote debugging | No telemetry SDK; Local Network Access guards on; Gecko form autofill is wired to the app's encrypted Android Keystore vault; remote debugging is absent from release builds and forced off at runtime |
+| Sanitize on shutdown | Engine-level `StorageController.clearData(ALL)` plus local history, session and permission cleanup on erase and shutdown; private sessions use the engine's real private mode |
 | `assets/mozconfig.new` — `MOZ_TELEMETRY_REPORTING=0`, no crashreporter, no updater | No Firebase, no Crashlytics, no auto-updater |
 | App icon from `logo/app-icon.png` | `app_name`, adaptive and round launcher icons, start page, Settings → About, About dialog, and this README |
 
@@ -859,7 +844,7 @@ meant to be checkable.
   [Application identity](TESTING.md#application-identity).
 - **Versions:** the current release is `1.2beta3` (`versionCode 156005`), built
   from the `beta` branch. The engine base is shown separately in Settings → About
-  as upstream Firefox `156.0`, LibreWolf release `1`.
+  as upstream Firefox `156.0`, build release `1`.
 - **Restart to apply:** engine privacy settings — cookies, HTTPS-only, GPC, DoH,
   JavaScript and Safe Browsing — are fixed when the runtime is created, so
   changing them in Settings takes effect on the next launch.
@@ -887,6 +872,5 @@ meant to be checkable.
 
 ## License
 
-Mozilla Public License 2.0 — see [LICENSE](LICENSE), the same licence as
-LibreWolf Desktop. Zyphra is an independent project; the Zyphra name and logo
-belong to this project, and LibreWolf's name and logo are not used.
+Mozilla Public License 2.0 — see [LICENSE](LICENSE). Zyphra is an independent
+project; the Zyphra name and logo belong to it.

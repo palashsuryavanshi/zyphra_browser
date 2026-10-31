@@ -1,12 +1,11 @@
 package com.zyphra.browser
 
-/** Privacy defaults ported from desktop LibreWolf's librewolf.cfg + distribution/policies.json. */
+/** The app's hardening baseline: engine-level privacy defaults. */
 object ZyphraDefaults {
-    const val HOMEPAGE = "https://librewolf.net"
-    const val SUPPORT_URL = "https://support.librewolf.net/"
-    const val UPDATE_URL = "https://librewolf.net/installation/"
+    const val HOMEPAGE = "https://github.com/palashsuryavanshi/ZyphraAndroid"
+    const val UPDATE_URL = "https://github.com/palashsuryavanshi/ZyphraAndroid/releases"
 
-    // librewolf.cfg: strict tracking protection, sanitize on shutdown, no disk cache,
+    // Baseline: strict tracking protection, sanitize on shutdown, no disk cache,
     // HTTPS-only, RFP, no telemetry/sync. (Safe Browsing is disabled outright;
     // autoplay has no GeckoView API and is not exposed.)
     const val BLOCK_THIRD_PARTY_COOKIES = true
@@ -14,13 +13,11 @@ object ZyphraDefaults {
     const val HTTPS_ONLY = true
     const val DO_NOT_TRACK = true
 
-    // librewolf.cfg DoH provider list (network.trr.uri default = Quad9 no-filter).
+    // DoH provider list (network.trr.uri default = Quad9 no-filter).
     data class DohProvider(val name: String, val uri: String)
     val DOH_PROVIDERS = listOf(
         DohProvider("Quad9 (No Filtering) — Zyphra default", "https://dns10.quad9.net/dns-query"),
         DohProvider("Quad9 (Malware blocking)", "https://dns.quad9.net/dns-query"),
-        DohProvider("LibreDNS (No Filtering)", "https://doh.libredns.gr/dns-query"),
-        DohProvider("LibreDNS (Adblocking)", "https://doh.libredns.gr/noads"),
         DohProvider("Wikimedia DNS (No Filtering)", "https://wikimedia-dns.org/dns-query"),
         DohProvider("DNS4All (No Filtering)", "https://doh.dns4all.eu/dns-query"),
         DohProvider("Mullvad (No Filtering)", "https://dns.mullvad.net/dns-query"),
@@ -73,7 +70,7 @@ object ZyphraDefaults {
         Addon("tampermonkey", "Tampermonkey", "Runs user scripts on pages you choose"),
     )
 
-    // librewolf.cfg: query stripping list (privacy.query_stripping.strip_list),
+    // Query stripping list (privacy.query_stripping.strip_list),
     // wired to GeckoView's native query-parameter stripping.
     val QUERY_STRIP_LIST = listOf(
         "__hsfp", "__hssc", "__hstc", "__s", "_bhlid", "_branch_match_id",

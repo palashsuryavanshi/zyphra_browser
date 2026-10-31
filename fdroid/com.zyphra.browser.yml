@@ -38,14 +38,11 @@ MaintainerNotes: |
   The Passkeys settings screen states the limitation on these builds rather
   than implying it works.</p>
 
-  <h3>Please review: branding and trademark</h3>
+  <h3>Branding</h3>
 
-  <p>This app was previously submitted under the LibreWolf name and logo. It has
-  since been rebranded as <b>Zyphra</b> with its own name and icon, and its
-  README states that it is "not affiliated with, endorsed by, or supported by
-  the LibreWolf project or Mozilla". The rebrand is intended to resolve the
-  trademark question; the upstream LibreWolf project is credited as the design
-  reference for the privacy defaults only.</p>
+  <p>The app ships under its own name and icon (Zyphra Browser). It is an
+  independent project, and its README states that it is "not affiliated with,
+  endorsed by, or supported by Mozilla".</p>
 
   <h3>Maven repository that is not on the trusted list</h3>
 

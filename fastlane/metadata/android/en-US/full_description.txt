@@ -1,11 +1,12 @@
 A privacy-focused web browser for Android built on Mozilla's GeckoView engine —
-the same engine that runs Firefox Desktop — with the privacy defaults of
-LibreWolf.
+the same engine that runs Firefox Desktop — with a hardened privacy
+configuration: strict tracking protection, fingerprinting resistance,
+query-parameter stripping and HTTPS-only mode.
 
 **No telemetry, no tracking, no accounts**
 
 There is no analytics SDK, no crash reporting service, no advertising network
-and no account system. The app does not talk to any LibreWolf or Mozilla
+and no account system. The app talks to no browser-vendor
 service. Nothing you browse is sent anywhere except to the sites you visit.
 
 **What it does**
@@ -44,5 +45,5 @@ WebAuthn sign-in does not work here**. Ordinary logins, including sites that
 fall back to a password or a one-time code, are unaffected. The GitHub release
 of this app is built with Play Services included and does support passkeys.
 
-This is an unofficial, community-run port. It is not affiliated with,
-endorsed by, or supported by the LibreWolf project or Mozilla.
+Zyphra Browser is an independent, community-run browser. It is not affiliated
+with, endorsed by, or supported by Mozilla.

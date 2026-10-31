@@ -99,7 +99,7 @@ android {
         // composes in its own process and Espresso cannot see its tree.
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
 
-        // Mirrors source/version + source/release (desktop LibreWolf base). Kept
+        // Mirrors the engine's source/version + source/release identity. Kept
         // separate from versionName so About can show what this app is and what
         // engine it is based on without conflating the two.
         buildConfigField 'String', 'UPSTREAM_FIREFOX', '"156.0"'

@@ -178,10 +178,8 @@ These are not code problems and were not resolved here.
 
 1. **Trademark and branding.**
    The inclusion policy says apps "must not infringe third party rights,
-   including … trademarks". This used to be the main risk when the app reused
-   LibreWolf's name and logo; the Zyphra rebrand resolves it — the app now uses
-   its own name and icon, and states that it is not affiliated with the
-   LibreWolf project or Mozilla.
+   including … trademarks". The app ships under its own name and icon (Zyphra
+   Browser) and states that it is not affiliated with Mozilla.
 
 2. **GeckoView comes from `maven.mozilla.org`, which is not a trusted
    repository.** The policy trusts Maven Central, Google Maven, OSS Sonatype,

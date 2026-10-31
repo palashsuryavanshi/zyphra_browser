@@ -651,7 +651,7 @@
     <!-- First-run walkthrough -->
     <string name="onboarding_welcome_title">Welcome to Zyphra</string>
     <string name="onboarding_welcome_body">A browser built for people who would rather not be tracked. It runs on the real Gecko engine, the same one Firefox uses, so websites get the engine they expect.</string>
-    <string name="onboarding_unofficial">Unofficial. Zyphra is an independent browser whose privacy defaults are inspired by the LibreWolf desktop project, and it is not affiliated with LibreWolf or Mozilla.</string>
+    <string name="onboarding_unofficial">Unofficial. Zyphra is an independent, community-run browser and is not affiliated with any other browser project.</string>
     <string name="onboarding_protection_title">Protection is already on</string>
     <string name="onboarding_protection_body">You do not have to configure anything to be private. These are the defaults, and every one of them is yours to change later.</string>
     <string name="onboarding_bullet_tracking">Tracking protection, and fingerprinting resistance</string>

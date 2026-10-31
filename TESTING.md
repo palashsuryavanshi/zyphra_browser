@@ -131,14 +131,14 @@ before the version code.
 The application id is **`com.zyphra.browser`**, and it is the identity the
 release key is bound to.
 
-It was previously `net.librewolf.android`. That was the wrong namespace to ship
-under: `net.librewolf` is Mozilla/LibreWolf's domain, and a package name is a
-claim about who owns the code. The rename moved `namespace`, `applicationId`, the
-source tree under `app/src/main/java/com/palash/librewolfandroid/`, the `package`
-declaration in all 48 Kotlin files, the manifest's media actions, the eleven
-ProGuard `-keep` rules, the launcher shortcuts, and two test fixtures.
+It previously shipped under an id derived from a domain this project does not
+own; a package name is a claim about who owns the code. The rename moved
+`namespace`, `applicationId`, the source tree under
+`app/src/main/java/com/zyphra/browser/`, the `package` declaration in all 48
+Kotlin files, the manifest's media actions, the eleven ProGuard `-keep` rules,
+the launcher shortcuts, and two test fixtures.
 
-`com.palash.librewolf-android` was the first spelling tried and does not exist as
+A hyphenated spelling of the id was the first one tried and does not exist as
 an option: AAPT rejects a hyphen in the manifest package outright with *"not a
 valid Android package name"*, because a package name is a Java package name.
 
@@ -306,7 +306,7 @@ the engine actually put on the request rather than what a page's script believes
 `--tls` serves the same pages on port 8800 behind a throwaway self-signed
 certificate generated into the temp directory, which is how the certificate-error
 path is driven: `https://127.0.0.1:8800/` renders "Secure connection failed â€” A
-secure connection could not be established. LibreWolf will not bypass certificate
+secure connection could not be established. Zyphra will not bypass certificate
 validation."
 
 ## Known defect, fixed

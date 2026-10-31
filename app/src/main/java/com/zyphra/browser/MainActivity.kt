@@ -48,7 +48,7 @@ import org.mozilla.geckoview.WebResponse
 /**
  * Browser home: official Zyphra logo, private-tab button, tracker pill, bottom
  * toolbar (home | address | tab count | menu), tab tray, menu sheet.
- * Engine settings mirror source/settings/librewolf.cfg.
+ * Engine settings mirror the app's hardening baseline.
  */
 class MainActivity : AppCompatActivity() {
 
@@ -3255,9 +3255,9 @@ class MainActivity : AppCompatActivity() {
             .setIcon(R.drawable.zyphra_logo)
             .setMessage(
                 "Zyphra Browser ${BuildConfig.VERSION_NAME}\n" +
-                    "Upstream Firefox: ${BuildConfig.UPSTREAM_FIREFOX} / LW release ${BuildConfig.ZYPHRA_RELEASE}\n" +
+                    "Upstream Firefox: ${BuildConfig.UPSTREAM_FIREFOX} / release ${BuildConfig.ZYPHRA_RELEASE}\n" +
                     "Engine: GeckoView ${ZyphraDefaults.GECKOVIEW_VERSION}\n\n" +
-                    "Privacy defaults ported from source/settings/librewolf.cfg.\n" +
+                    "Privacy-hardened engine defaults.\n" +
                     "No telemetry. Updates: ${ZyphraDefaults.UPDATE_URL}",
             )
             .setPositiveButton(android.R.string.ok, null)

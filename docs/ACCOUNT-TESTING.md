@@ -56,7 +56,7 @@ download request with its own HTTP client therefore cannot attach the session
 cookie, and a download from a signed-in page silently returns the *login page*
 instead of the file.
 
-LibreWolf avoids this by consuming the response Gecko has **already** fetched
+The browser avoids this by consuming the response Gecko has **already** fetched
 (`GeckoSession.ContentDelegate.onExternalResponse` → `WebResponse.body`). Gecko
 applies the cookie; the app only writes the bytes to disk. Resuming a paused
 authenticated download re-fetches through Gecko in a throwaway session and skips

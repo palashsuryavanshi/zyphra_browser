@@ -3,7 +3,7 @@ package com.zyphra.browser
 import android.content.Context
 import androidx.core.content.edit
 
-/** Persists Zyphra privacy prefs. Defaults mirror source/settings/librewolf.cfg. */
+/** Persists Zyphra privacy prefs. Defaults mirror the hardening baseline. */
 class PrivacyStore(context: Context) {
     private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 

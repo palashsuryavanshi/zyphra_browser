@@ -102,7 +102,7 @@ Configured on `ContentBlocking.Settings` at runtime construction:
 
 - Enhanced Tracking Protection: `DEFAULT`, or `STRICT` when the user enables it
 - social tracker blocking, configurable
-- `queryParameterStrippingEnabled` with the LibreWolf strip list
+- `queryParameterStrippingEnabled` with the built-in strip list
 - `cookieBehavior` maps directly to the user's setting: `ACCEPT_NONE`,
   `ACCEPT_FIRST_PARTY_AND_ISOLATE_OTHERS`, or `ACCEPT_ALL`
 - private mode always uses `ACCEPT_FIRST_PARTY_AND_ISOLATE_OTHERS`
@@ -179,9 +179,8 @@ Stated as limitations, not fixed by claiming otherwise.
 - **Downloaded files persist.** A file fetched in private mode stays on disk.
 - **No certificate pinning.** Pinning is not implemented; the engine's normal
   validation and the system trust store are used.
-- **Third-party cookies are on by default.** The LibreWolf default is
-  `ACCEPT_ALL`; isolation is a setting, not the default. This mirrors desktop
-  LibreWolf's own defaults but is worth knowing.
+- **Third-party cookies are accepted by default.** Isolation is a setting, not
+  the default. Worth knowing before relying on it.
 - **http/https behaviour is user-controlled.** HTTPS-only mode defaults to off
   (`allowInsecureConnections(ALLOW_ALL)` for http navigation and mixed content).
   This does **not** weaken certificate validation — certificates are validated

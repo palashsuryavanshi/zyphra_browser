@@ -8,8 +8,8 @@ system integration around that engine. It does not reimplement HTML, CSS,
 JavaScript, WebAssembly, WebGL, cookies, service workers or other web-platform
 primitives.
 
-GeckoView was selected over Android WebView because it preserves LibreWolf's engine
-identity and provides working Android Widevine L1 DRM support.
+GeckoView was selected over Android WebView because it preserves the hardened
+engine identity and provides working Android Widevine L1 DRM support.
 
 ## Delivery principles
 
