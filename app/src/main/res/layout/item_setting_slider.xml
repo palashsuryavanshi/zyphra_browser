@@ -19,14 +19,14 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:textColor="@color/librewolf_text"
+            android:textColor="@color/zyphra_text"
             android:textSize="17sp" />
 
         <TextView
             android:id="@+id/set_value"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textColor="@color/librewolf_accent"
+            android:textColor="@color/zyphra_accent"
             android:textSize="15sp" />
     </LinearLayout>
 
@@ -34,7 +34,7 @@
         android:id="@+id/set_sub"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textColor="@color/librewolf_grey"
+        android:textColor="@color/zyphra_grey"
         android:textSize="14sp"
         android:visibility="gone" />
 

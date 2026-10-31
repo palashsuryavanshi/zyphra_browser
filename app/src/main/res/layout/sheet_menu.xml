@@ -2,7 +2,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:background="@color/librewolf_bg"
+    android:background="@color/zyphra_bg"
     android:orientation="vertical"
     android:paddingStart="16dp"
     android:paddingEnd="16dp">
@@ -45,7 +45,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/extensions"
-            android:textColor="@color/librewolf_text"
+            android:textColor="@color/zyphra_text"
             android:textSize="15sp" />
     </LinearLayout>
 
@@ -79,7 +79,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
                 android:text="@string/history"
-                android:textColor="@color/librewolf_text"
+                android:textColor="@color/zyphra_text"
                 android:textSize="13sp" />
         </LinearLayout>
 
@@ -106,7 +106,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
                 android:text="@string/bookmarks"
-                android:textColor="@color/librewolf_text"
+                android:textColor="@color/zyphra_text"
                 android:textSize="13sp" />
         </LinearLayout>
 
@@ -133,7 +133,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
                 android:text="@string/downloads"
-                android:textColor="@color/librewolf_text"
+                android:textColor="@color/zyphra_text"
                 android:textSize="13sp" />
         </LinearLayout>
 
@@ -160,7 +160,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
                 android:text="@string/settings_passwords"
-                android:textColor="@color/librewolf_text"
+                android:textColor="@color/zyphra_text"
                 android:textSize="13sp" />
         </LinearLayout>
     </GridLayout>
@@ -191,7 +191,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/install_app"
-            android:textColor="@color/librewolf_text"
+            android:textColor="@color/zyphra_text"
             android:textSize="15sp" />
     </LinearLayout>
 
@@ -219,7 +219,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/privacy_report"
-            android:textColor="@color/librewolf_text"
+            android:textColor="@color/zyphra_text"
             android:textSize="15sp" />
     </LinearLayout>
 
@@ -247,7 +247,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="@string/menu_troubleshoot_site"
-            android:textColor="@color/librewolf_text"
+            android:textColor="@color/zyphra_text"
             android:textSize="15sp" />
     </LinearLayout>
 
@@ -274,7 +274,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/whats_new"
-            android:textColor="@color/librewolf_text"
+            android:textColor="@color/zyphra_text"
             android:textSize="15sp" />
     </LinearLayout>
 
@@ -301,7 +301,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/settings"
-            android:textColor="@color/librewolf_text"
+            android:textColor="@color/zyphra_text"
             android:textSize="15sp" />
     </LinearLayout>
 
@@ -328,7 +328,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/quit_app"
-            android:textColor="@color/librewolf_danger"
+            android:textColor="@color/zyphra_danger"
             android:textSize="15sp" />
     </LinearLayout>
 

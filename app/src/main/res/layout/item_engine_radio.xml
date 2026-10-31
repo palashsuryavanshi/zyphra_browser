@@ -26,7 +26,7 @@
         android:layout_marginStart="8dp"
         android:background="#3A3A40"
         android:gravity="center"
-        android:textColor="@color/librewolf_text"
+        android:textColor="@color/zyphra_text"
         android:textSize="15sp"
         android:textStyle="bold" />
 
@@ -38,7 +38,7 @@
         android:layout_weight="1"
         android:ellipsize="end"
         android:singleLine="true"
-        android:textColor="@color/librewolf_text"
+        android:textColor="@color/zyphra_text"
         android:textSize="16sp" />
 
     <ImageButton

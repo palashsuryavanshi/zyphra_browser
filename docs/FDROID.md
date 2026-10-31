@@ -196,7 +196,7 @@ These are not code problems and were not resolved here.
 
 3. **Application ID is not derived from a domain.** The policy advises that
    "the Application ID … stems from a domain name owned by the developer".
-   `com.palash.librewolfandroid` does not. Advisory rather than blocking, and
+   `com.zyphra.browser` does not. Advisory rather than blocking, and
    changing it now would orphan existing installs.
 
 4. **No screenshots in `fastlane/metadata/`.** F-Droid treats them as

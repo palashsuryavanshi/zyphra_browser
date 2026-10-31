@@ -21,7 +21,7 @@ browser-side mechanic an account flow depends on. It uses throwaway credentials
 python tools\account-flow-fixture.py 8777
 adb -s <serial> reverse tcp:8777 tcp:8777
 adb -s <serial> shell am start -a android.intent.action.VIEW `
-    -d http://127.0.0.1:8777/ -n com.palash.librewolfandroid/.MainActivity
+    -d http://127.0.0.1:8777/ -n com.zyphra.browser/.MainActivity
 ```
 
 Set `LW_PROTECTED_BYTES` to change the size of the cookie-protected download

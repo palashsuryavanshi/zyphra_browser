@@ -171,7 +171,7 @@
     <string name="settings_diagnostics_sub">Engine build, refresh rate, memory and storage</string>
     <string name="diag_engine">Engine</string>
     <string name="diag_engine_version">Engine version (Firefox base)</string>
-    <string name="diag_librewolf_release">LibreWolf release</string>
+    <string name="diag_zyphra_release">LibreWolf release</string>
     <string name="diag_app_version">App version</string>
     <string name="diag_abi">Architecture</string>
     <string name="diag_device">Device</string>
@@ -565,7 +565,7 @@
     <string name="about_browser">Browser version</string>
     <string name="about_engine">Engine</string>
     <string name="about_engine_sub">GeckoView, Firefox base</string>
-    <string name="about_librefox_release">LibreWolf release</string>
+    <string name="about_zyphra_release">LibreWolf release</string>
     <string name="about_licences">Open source licences</string>
     <string name="about_licences_sub">What this app is built from</string>
     <string name="about_source">Source code</string>

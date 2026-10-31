@@ -6,20 +6,20 @@
 # Components are named in AndroidManifest.xml and instantiated by the platform,
 # not from Kotlin, so their names have to survive. AGP keeps the components the
 # manifest declares, but the shell also references these by name from code.
--keep class com.palash.librewolfandroid.MainActivity { *; }
--keep class com.palash.librewolfandroid.GeckoCrashService { *; }
--keep class com.palash.librewolfandroid.DownloadService { *; }
--keep class com.palash.librewolfandroid.BrowserMediaService { *; }
--keep class com.palash.librewolfandroid.MediaActionReceiver { *; }
--keep class com.palash.librewolfandroid.LibreWolfApplication { *; }
+-keep class com.zyphra.browser.MainActivity { *; }
+-keep class com.zyphra.browser.GeckoCrashService { *; }
+-keep class com.zyphra.browser.DownloadService { *; }
+-keep class com.zyphra.browser.BrowserMediaService { *; }
+-keep class com.zyphra.browser.MediaActionReceiver { *; }
+-keep class com.zyphra.browser.ZyphraApplication { *; }
 
 # GeckoView looks these up as the runtime's collaborators. They are passed as
 # objects, so R8 would normally inline or rename them, but the engine keeps
 # them alive past the call and reaches back into them later.
--keep class com.palash.librewolfandroid.BrowserAutocompleteDelegate { *; }
--keep class com.palash.librewolfandroid.BrowserNotificationDelegate { *; }
--keep class com.palash.librewolfandroid.BasicSelectionActionDelegate { *; }
--keep class com.palash.librewolfandroid.BrowserPermissionDelegate { *; }
+-keep class com.zyphra.browser.BrowserAutocompleteDelegate { *; }
+-keep class com.zyphra.browser.BrowserNotificationDelegate { *; }
+-keep class com.zyphra.browser.BasicSelectionActionDelegate { *; }
+-keep class com.zyphra.browser.BrowserPermissionDelegate { *; }
 
 # Dialog and bottom-sheet fragments are recreated by name from saved state after
 # a process death or a rotation, which is a reflective lookup.
@@ -29,7 +29,7 @@
 # The permission prompt is built from a JSON blob the engine hands back, and the
 # download and history records are persisted as JSON, so their field names are
 # part of the on-disk format and must not be obfuscated.
--keepclassmembers class com.palash.librewolfandroid.** {
+-keepclassmembers class com.zyphra.browser.** {
     <fields>;
 }
 

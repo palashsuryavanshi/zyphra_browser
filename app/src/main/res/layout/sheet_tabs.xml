@@ -16,7 +16,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/librewolf_bg"
+    android:background="@color/zyphra_bg"
     android:orientation="vertical"
     android:padding="16dp">
 
@@ -38,7 +38,7 @@
             android:paddingEnd="16dp"
             android:paddingBottom="8dp"
             android:text="@string/tabs"
-            android:textColor="@color/librewolf_text"
+            android:textColor="@color/zyphra_text"
             android:textStyle="bold" />
 
         <TextView
@@ -54,7 +54,7 @@
             android:paddingEnd="16dp"
             android:paddingBottom="8dp"
             android:text="@string/tab_private"
-            android:textColor="@color/librewolf_grey" />
+            android:textColor="@color/zyphra_grey" />
 
         <TextView
             android:id="@+id/mode_inactive"
@@ -69,7 +69,7 @@
             android:paddingEnd="16dp"
             android:paddingBottom="8dp"
             android:text="@string/inactive"
-            android:textColor="@color/librewolf_grey"
+            android:textColor="@color/zyphra_grey"
             android:visibility="gone" />
 
         <TextView
@@ -85,7 +85,7 @@
             android:paddingEnd="16dp"
             android:paddingBottom="8dp"
             android:text="@string/groups"
-            android:textColor="@color/librewolf_grey"
+            android:textColor="@color/zyphra_grey"
             android:visibility="gone" />
 
         <View
@@ -102,7 +102,7 @@
             android:minWidth="40dp"
             android:minHeight="40dp"
             android:text="5"
-            android:textColor="@color/librewolf_text"
+            android:textColor="@color/zyphra_text"
             android:textStyle="bold" />
     </LinearLayout>
 
@@ -112,7 +112,7 @@
         android:layout_height="wrap_content"
         android:padding="32dp"
         android:textAlignment="center"
-        android:textColor="@color/librewolf_grey"
+        android:textColor="@color/zyphra_grey"
         android:textSize="15sp"
         android:visibility="gone" />
 
@@ -156,7 +156,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="⋮⋮⋮"
-                android:textColor="@color/librewolf_grey"
+                android:textColor="@color/zyphra_grey"
                 android:textSize="18sp" />
         </LinearLayout>
 
@@ -184,7 +184,7 @@
                 android:id="@+id/tray_trackers"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textColor="@color/librewolf_text"
+                android:textColor="@color/zyphra_text"
                 android:textSize="13sp" />
         </LinearLayout>
 

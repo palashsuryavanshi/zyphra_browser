@@ -2,7 +2,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/librewolf_bg"
+    android:background="@color/zyphra_bg"
     android:orientation="vertical">
 
     <LinearLayout
@@ -25,7 +25,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="@string/extensions"
-            android:textColor="@color/librewolf_text"
+            android:textColor="@color/zyphra_text"
             android:textSize="24sp" />
     </LinearLayout>
 
@@ -39,7 +39,7 @@
         android:layout_marginStart="16dp"
         android:layout_marginTop="4dp"
         android:text="@string/extensions_available"
-        android:textColor="@color/librewolf_grey"
+        android:textColor="@color/zyphra_grey"
         android:textSize="14sp" />
 
     <!-- The installable list, above the installed list, because installing is
@@ -58,7 +58,7 @@
         android:layout_marginStart="16dp"
         android:layout_marginTop="12dp"
         android:text="@string/extensions_installed"
-        android:textColor="@color/librewolf_grey"
+        android:textColor="@color/zyphra_grey"
         android:textSize="14sp" />
 
     <androidx.recyclerview.widget.RecyclerView

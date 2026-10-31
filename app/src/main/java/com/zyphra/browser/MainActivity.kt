@@ -1,0 +1,3269 @@
+package com.zyphra.browser
+
+import android.app.DownloadManager
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.app.PictureInPictureParams
+import android.os.Build
+import android.os.Bundle
+import android.util.Rational
+import android.graphics.Bitmap
+import android.graphics.Rect
+import android.view.MotionEvent
+import android.view.TouchDelegate
+import android.view.View
+import android.webkit.URLUtil
+import android.util.TypedValue
+import android.widget.EditText
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.ProgressBar
+import android.widget.TextView
+import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.core.widget.doAfterTextChanged
+import java.net.URLEncoder
+import org.mozilla.geckoview.AllowOrDeny
+import org.mozilla.geckoview.Autofill
+import org.mozilla.geckoview.BasicSelectionActionDelegate
+import org.mozilla.geckoview.ContentBlocking
+import org.mozilla.geckoview.GeckoResult
+import org.mozilla.geckoview.GeckoRuntime
+import org.mozilla.geckoview.GeckoRuntimeSettings
+import org.mozilla.geckoview.GeckoSession
+import org.mozilla.geckoview.GeckoSessionSettings
+import org.mozilla.geckoview.GeckoView
+import org.mozilla.geckoview.GeckoPreferenceController
+import org.mozilla.geckoview.StorageController
+import org.mozilla.geckoview.WebRequestError
+import org.mozilla.geckoview.WebResponse
+
+/**
+ * Browser home: official LibreWolf logo, private-tab button, tracker pill, bottom
+ * toolbar (home | address | tab count | menu), tab tray, menu sheet.
+ * Engine settings mirror source/settings/librewolf.cfg.
+ */
+class MainActivity : AppCompatActivity() {
+
+    private data class Tab(
+        val id: Long,
+        // Replaced when a tab is suspended under memory pressure and revived when
+        // it is selected again, so `session` cannot be a val.
+        var session: GeckoSession,
+        var title: String = "",
+        var url: String = "",
+        var canGoBack: Boolean = false,
+        var canGoForward: Boolean = false,
+        var isSecure: Boolean = false,
+        var isError: Boolean = false,
+        var isLoading: Boolean = false,
+        var trackers: Int = 0,
+        var threats: Int = 0,
+        var lastActiveAt: Long = System.currentTimeMillis(),
+        val isPrivate: Boolean = false,
+        var isHome: Boolean = true,
+        var suspended: Boolean = false,
+        // Restored tabs carry their URL as metadata only: the session starts
+        // at about:blank and the page loads on first selection. Loading every
+        // restored tab at startup meant N sessions fetching at once in front
+        // of the first paint.
+        var needsLoad: Boolean = false,
+        // GeckoView opens popup sessions itself after onNewSession returns. Select
+        // the popup only after that asynchronous open has completed.
+        var selectWhenOpened: Boolean = false,
+    ) {
+        fun domain(): String = try {
+            android.net.Uri.parse(url).host?.removePrefix("www.") ?: url
+        } catch (_e: Exception) {
+            url
+        }
+    }
+
+    companion object {
+        const val HOME_START = "lw:start"
+        const val ACTION_PRIVATE_TAB = "com.zyphra.browser.PRIVATE_TAB"
+
+        /** Tag for preview-capture diagnostics. Never logs a URL or a tab title. */
+        const val TAG_PREVIEW = "LibreWolfPreview"
+        const val ACTION_ABOUT = "com.zyphra.browser.ABOUT"
+        const val ACTION_OPEN_NOTIFICATION = "com.zyphra.browser.OPEN_NOTIFICATION"
+        const val ACTION_DATA_CLEARED = "com.zyphra.browser.DATA_CLEARED"
+        const val EXTRA_NOTIFICATION_URL = "notification_url"
+        private const val EXTRA_WEB_APP = "com.zyphra.browser.WEB_APP"
+
+        /** How long a paused download waits for Gecko to hand back a fresh body. */
+        private const val REFRESH_TIMEOUT_MS = 30_000L
+
+        internal const val AUTOFILL_TAG = "LWAutofill"
+
+        /** Schemes Android owns; anything else is a file the browser keeps. */
+        private val HANDOFF_SCHEMES = setOf(
+            "mailto", "tel", "sms", "smsto", "mms", "geo", "market", "intent",
+            "news", "sip", "sips", "webcal", "im", "irc", "ircs", "xmpp",
+        )
+
+        /**
+         * The agent string sent when the user asks to be reported as a common
+         * desktop browser. It matches what Firefox itself sends for a manual
+         * override, so a site that gates on the string behaves the same way it
+         * does there.
+         */
+        private const val MICROMIUM_DESKTOP_UA =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:147.0) Gecko/20100101 Firefox/147.0"
+
+        // One GeckoRuntime per process (GeckoView requirement).
+        internal var runtime: GeckoRuntime? = null
+
+        fun runtimeRef(): GeckoRuntime? = runtime
+
+        /** Best-effort engine wipe usable from Settings. */
+        fun eraseEngineData(flags: Long = StorageController.ClearFlags.ALL) {
+            try {
+                runtime?.storageController?.clearData(flags)
+            } catch (_: Exception) {
+            }
+        }
+
+        /**
+         * The on-quit clean-up, category by category.
+         *
+         * Downloads are not an engine category, so they are handled by the
+         * caller through [DownloadStore]; everything else is a clear flag.
+         */
+        fun eraseEngineDataOnQuit(store: PrivacyStore) {
+            var flags = 0L
+            if (store.sanitizeCookies) flags = flags or StorageController.ClearFlags.COOKIES
+            if (store.sanitizeCache) flags = flags or StorageController.ClearFlags.ALL_CACHES
+            if (store.sanitizeSiteData) flags = flags or StorageController.ClearFlags.SITE_DATA
+            if (flags != 0L) eraseEngineData(flags)
+            if (store.sanitizeDownloads) {
+                val context = storeContext ?: return
+                runCatching {
+                    DownloadStore(context).all().forEach { DownloadEngine.remove(it.id) }
+                    DownloadStore(context).clearAll()
+                }
+            }
+        }
+
+        /**
+         * A context for the static clean-up helpers.
+         *
+         * The store holds no context of its own, so one is attached here for the
+         * lifetime of the process and reused; `Context.getApplicationContext`
+         * keeps it from leaking an activity.
+         */
+        private var storeContext: Context? = null
+
+        fun attachContext(context: Context) {
+            storeContext = context.applicationContext
+        }
+    }
+
+    private val tabs = mutableListOf<Tab>()
+    private var nextId = 1L
+    private var activeId = -1L
+    private lateinit var store: PrivacyStore
+    private lateinit var historyStore: HistoryStore
+    private lateinit var bookmarkStore: BookmarkStore
+    private lateinit var sessionStore: BrowserSessionStore
+    private lateinit var sitePermissionStore: SitePermissionStore
+    private lateinit var loginStore: LoginStore
+    private lateinit var mediaController: BrowserMediaController
+
+    /**
+     * Page previews for the tab switcher, keyed by the stable tab id.
+     *
+     * A preview is only obtainable for a session attached to the engine's view,
+     * so it is captured when a tab is left rather than continuously. The cache
+     * is byte-bounded (see [PreviewCache]); under memory pressure the previews
+     * are the first thing dropped, because dropping one degrades a thumbnail
+     * while dropping a tab would lose the user's page.
+     */
+    private val previews = PreviewCache()
+
+    /** The standing "this tab is private" reminder. */
+    private lateinit var privateIndicator: PrivateBrowsingNotifier
+
+    private lateinit var geckoView: RefreshableGeckoView
+
+    /** The pull-to-refresh wrapper around [geckoView]. Null until inflated. */
+    private lateinit var pullRefresh: androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+    private lateinit var browserControls: View
+    private lateinit var homeOverlay: LinearLayout
+    private lateinit var trayTrackersText: String
+    private lateinit var progress: ProgressBar
+    private lateinit var addressText: EditText
+    /** Connection state for the tab in front. See updateSecurityIndicator. */
+    private lateinit var securityIndicator: android.widget.ImageView
+    private lateinit var tabsCount: TextView
+    private var suggestionsAdapter: SuggestionsAdapter? = null
+    private var suggestionsBox: android.view.ViewGroup? = null
+    private var suggestionsList: androidx.recyclerview.widget.RecyclerView? = null
+    /**
+     * Suggestion inputs, cached. updateSuggestions used to re-parse the whole
+     * history and bookmark JSON on every keystroke -- three full parses per
+     * character on the main thread. The lists only change when a page loads
+     * (this activity) or when History/Bookmarks screens edit them (while this
+     * activity is stopped), so a cache invalidated on resume and on local
+     * write is always fresh and never parsed twice for the same content.
+     */
+    private var suggestionHistory: List<HistoryEntry>? = null
+    private var suggestionBookmarks: List<Bookmark>? = null
+    private val suggestionHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var suggestionPending: Runnable? = null
+    private var menuSheet: MenuSheet? = null
+    private var tabsSheet: TabsSheet? = null
+    private var fullscreenSession: GeckoSession? = null
+    private var webAppManifest: org.json.JSONObject? = null
+    private var webAppUrl: String? = null
+    private var webAppIconUrl: String? = null
+
+    /** Which tab shipped [webAppManifest]. -1 when none has. */
+    private var webAppManifestTabId: Long = -1L
+    private var immersiveMode = false
+    // True only between the Quit confirmation and process end. See askQuit
+    // and onDestroy: destruction alone must not wipe user data.
+    private var quitting = false
+    // Held as a field so a recreated activity can re-point the runtime at the
+    // new instance; the runtime outlives any single activity.
+    private val serviceWorkerDelegate = object : GeckoRuntime.ServiceWorkerDelegate {
+        override fun onOpenWindow(url: String): GeckoResult<GeckoSession> =
+            GeckoResult.fromValue(createUnopenedPopup(isPrivate = false))
+    }
+
+    /**
+     * Web notifications, told how to recognise a private one.
+     *
+     * The delegate is installed on the runtime, which is process-wide, so it
+     * cannot see which session raised the notification. It is handed the source
+     * and asked whether a private tab owns it, so a private page's host does not
+     * end up on the lock screen.
+     */
+    private val webNotificationDelegate by lazy {
+        BrowserNotificationDelegate(this) { source -> isPrivateOrigin(source) }
+    }
+
+    /** Is [origin] a page belonging to one of the open private tabs? */
+    private fun isPrivateOrigin(origin: String?): Boolean {
+        if (origin.isNullOrBlank()) return false
+        val host = runCatching { Uri.parse(origin).host }.getOrNull() ?: return false
+        return tabs.any { tab ->
+            tab.isPrivate && tab.url.isNotBlank() &&
+                runCatching { Uri.parse(tab.url).host == host }.getOrDefault(false)
+        }
+    }
+
+    /** Origin the browser was launched for from a pinned web-app shortcut. */
+    private var webAppOrigin: String? = null
+    private var chromeRevealed = false
+    private var tapDownAt = 0L
+    private var tapDownX = 0f
+    private var tapDownY = 0f
+
+    private val voiceLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            val spoken = result.data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)
+                ?.firstOrNull()
+            if (!spoken.isNullOrEmpty()) navigate(spoken)
+        }
+
+    private lateinit var promptDelegate: BrowserPromptDelegate
+    private lateinit var permissionDelegate: BrowserPermissionDelegate
+    private val permissionCompletions = mutableListOf<(Boolean) -> Unit>()
+
+    private val filePickerLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (::promptDelegate.isInitialized) {
+                promptDelegate.onFilePickerResult(result.resultCode, result.data)
+            }
+        }
+
+    private val cameraLauncher =
+        registerForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+            if (::promptDelegate.isInitialized) promptDelegate.onCameraResult(success)
+        }
+
+    private val permissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+            val granted = result.values.all { it }
+            val completions = permissionCompletions.toList()
+            permissionCompletions.clear()
+            completions.forEach { it(granted) }
+        }
+
+    /** Address-bar suggestions driven by Settings > Search. */
+    private fun updateSuggestions(raw: String) {
+        // Keystrokes arrive faster than a parse-and-render cycle matters: wait
+        // for a pause before doing the work, and drop whatever is still queued
+        // when the box hides (navigation, focus loss) so a stale run cannot
+        // pop the box back open after it was dismissed.
+        suggestionPending?.let { suggestionHandler.removeCallbacks(it) }
+        val job = Runnable { updateSuggestionsNow() }
+        suggestionPending = job
+        suggestionHandler.postDelayed(job, 120)
+    }
+
+    private fun updateSuggestionsNow() {
+        suggestionPending = null
+        val raw = if (addressText.hasFocus()) addressText.text.toString() else return
+        val box = suggestionsBox ?: findViewById<android.view.ViewGroup>(R.id.suggestions_box)
+        suggestionsBox = box
+        val text = raw.trim()
+        val private = activeTab()?.isPrivate == true
+        val allowPrivate = store.searchSuggestionsPrivate
+        val suggestionsOn = store.searchSuggestions && (!private || allowPrivate)
+        val items = mutableListOf<Suggestion>()
+
+        if (text.isNotEmpty()) {
+            if (suggestionsOn) {
+                // One parse per run, not three: history is read once and shared
+                // by the matches below and the recent-search row.
+                val history = if (store.searchHistory || (store.showRecentSearches && !private)) {
+                    suggestionHistory ?: historyStore.all().also { suggestionHistory = it }
+                } else {
+                    emptyList()
+                }
+                if (store.searchHistory) {
+                    history
+                        .filter { it.title.contains(text, true) || it.url.contains(text, true) }
+                        .take(4)
+                        .forEach { e ->
+                            items.add(
+                                Suggestion(e.title, e.url, badgeLetter(e.title, e.url)) {
+                                    navigate(e.url)
+                                },
+                            )
+                        }
+                }
+                if (store.searchBookmarks) {
+                    val bookmarks = suggestionBookmarks
+                        ?: bookmarkStore.all().also { suggestionBookmarks = it }
+                    bookmarks
+                        .filter { it.title.contains(text, true) || it.url.contains(text, true) }
+                        .take(3)
+                        .forEach { b ->
+                            items.add(Suggestion(b.title, b.url, badgeLetter(b.title, b.url)) {
+                                navigate(b.url)
+                            })
+                        }
+                }
+                if (store.showRecentSearches && !private) {
+                    history.firstOrNull { it.url != text }?.let { e ->
+                        if (items.none { it.sub == e.url }) {
+                            items.add(
+                                Suggestion(
+                                    getString(R.string.sug_recent),
+                                    e.title.ifEmpty { e.url },
+                                    "R",
+                                ) { navigate(e.url) },
+                            )
+                        }
+                    }
+                }
+            }
+            if (store.showClipboardSuggestions) {
+                val clip = readClipboard()
+                if (!clip.isNullOrBlank() && clip != text && (items.none { it.sub == clip })) {
+                    items.add(
+                        Suggestion(
+                            getString(R.string.sug_clipboard),
+                            clip,
+                            "C",
+                        ) {
+                            addressText.setText(clip)
+                            addressText.setSelection(clip.length)
+                        },
+                    )
+                }
+            }
+            if (store.autocompleteUrls) {
+                if (text.contains(".") && !text.contains(" ")) {
+                    // Do not prepend a scheme to text that already has one.
+                    // The address field shows the URL itself while editing, so
+                    // "https://example.com/" used to be offered back as
+                    // "Go to https://https://example.com/".
+                    val hasScheme = text.startsWith("http://", ignoreCase = true) ||
+                        text.startsWith("https://", ignoreCase = true)
+                    items.add(
+                        Suggestion(
+                            getString(
+                                R.string.sug_go,
+                                if (hasScheme) text else "https://$text",
+                            ),
+                            text,
+                            ">",
+                        ) { navigate(text) },
+                    )
+                }
+                val engine = store.engineFor(private)
+                items.add(
+                    Suggestion(
+                        getString(R.string.sug_search, engine.name),
+                        text,
+                        "S",
+                    ) { navigateSearch(text) },
+                )
+            }
+        }
+        if (items.isEmpty()) {
+            box.visibility = View.GONE
+            return
+        }
+        suggestionsAdapter?.update(items)
+        box.visibility = View.VISIBLE
+    }
+
+    /**
+     * Keeps the suggestion list from growing past the space the toolbar needs.
+     *
+     * The list sits between the page and the controls, so an unbounded result set
+     * pushes the address bar and the menu button off the bottom of the screen, and
+     * with them the only way out of the box the user is stuck in. `android:maxHeight`
+     * in the layout is honoured by TextView and ImageView and ignored by
+     * RecyclerView, so the cap has to be applied here.
+     *
+     * The clamp uses the height the list actually measured rather than a row
+     * height times a count, so it stays correct when the row wraps to two lines
+     * or the user raises the system font scale. Assigning the capped height
+     * triggers one more layout pass, in which the measured height already equals
+     * the target, so it settles instead of oscillating.
+     */
+    private fun installSuggestionCap(list: androidx.recyclerview.widget.RecyclerView) {
+        list.viewTreeObserver.addOnGlobalLayoutListener {
+            if (suggestionsBox?.visibility != View.VISIBLE) return@addOnGlobalLayoutListener
+            val params = list.layoutParams ?: return@addOnGlobalLayoutListener
+            val measured = list.measuredHeight
+            if (measured <= 0) return@addOnGlobalLayoutListener
+            val cap = resources.getDimensionPixelSize(R.dimen.suggestions_max_height)
+            val target = measured.coerceAtMost(cap)
+            if (params.height != target) {
+                params.height = target
+                list.layoutParams = params
+            }
+        }
+    }
+
+    private fun hideSuggestions() {
+        suggestionPending?.let { suggestionHandler.removeCallbacks(it) }
+        suggestionPending = null
+        suggestionsBox?.visibility = View.GONE
+    }
+
+    /**
+     * Takes the address bar out of editing mode: focus off the field, keyboard
+     * down, and the field showing the page again rather than what was typed.
+     *
+     * Both halves are needed. The field keeps its own window token until the IME
+     * is told explicitly, so `clearFocus()` alone leaves the keyboard on screen
+     * and the next page loads behind it. And the focus listener restores the
+     * displayed URL, which is what turns the bar back into a status display
+     * rather than a text field the user never left.
+     */
+    private fun leaveEditing() {
+        hideSuggestions()
+        addressText.clearFocus()
+        (getSystemService(android.content.Context.INPUT_METHOD_SERVICE)
+            as? android.view.inputmethod.InputMethodManager)
+            ?.hideSoftInputFromWindow(addressText.windowToken, 0)
+    }
+
+    private fun readClipboard(): String? = try {
+        val cm = getSystemService(android.content.ClipboardManager::class.java)
+        cm?.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(this)?.toString()
+    } catch (_e: Exception) {
+        null
+    }
+
+    private fun startVoiceSearch() {
+        val intent = Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(
+                android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
+            )
+            putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, getString(R.string.voice_prompt))
+        }
+        try {
+            voiceLauncher.launch(intent)
+        } catch (_e: Exception) {
+            android.widget.Toast.makeText(this, getString(R.string.not_available), android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    init {
+        trayTrackersText = ""
+    }
+
+    private fun tabFor(session: GeckoSession): Tab? = tabs.find { it.session === session }
+    private fun activeTab(): Tab? = tabs.find { it.id == activeId }
+    internal fun activeTabId(): Long = activeId
+    internal fun tabIdForSession(session: GeckoSession): Long? = tabFor(session)?.id
+
+    // ---- shared session delegates ----
+
+    private val navigationDelegate = object : GeckoSession.NavigationDelegate {
+        override fun onLoadRequest(
+            session: GeckoSession,
+            request: GeckoSession.NavigationDelegate.LoadRequest,
+        ): GeckoResult<AllowOrDeny> {
+            val uri = request.uri
+            val scheme = runCatching { Uri.parse(uri).scheme?.lowercase() }.getOrNull()
+            if (scheme == "http" || scheme == "https" || scheme == "about" || scheme == "data" ||
+                scheme == "file" || scheme == "blob" || scheme == "content" || scheme == "filesystem"
+            ) {
+                return GeckoResult.fromValue(AllowOrDeny.ALLOW)
+            }
+            // Gecko cannot load Android protocols itself. Route only explicit
+            // top-level requests; subframes stay inside the engine below.
+            val isIntentUri = uri.startsWith("intent:", ignoreCase = true)
+            if (request.hasUserGesture || (store.openLinksInApps && !isIntentUri)) {
+                openExternalUri(uri)
+            }
+            return GeckoResult.fromValue(AllowOrDeny.DENY)
+        }
+
+        override fun onSubframeLoadRequest(
+            session: GeckoSession,
+            request: GeckoSession.NavigationDelegate.LoadRequest,
+        ): GeckoResult<AllowOrDeny> = GeckoResult.fromValue(AllowOrDeny.ALLOW)
+
+        override fun onLocationChange(
+            session: GeckoSession,
+            url: String?,
+            permissions: List<GeckoSession.PermissionDelegate.ContentPermission>,
+            hasUserGesture: Boolean,
+        ) {
+            val tab = tabFor(session) ?: return
+            if (url != null) {
+                val oldHost = runCatching { Uri.parse(webAppUrl.orEmpty()).host }.getOrNull()
+                val newHost = runCatching { Uri.parse(url).host }.getOrNull()
+                if (oldHost != null && newHost != null && oldHost != newHost) {
+                    webAppManifest = null
+                    webAppManifestTabId = -1L
+                    webAppUrl = null
+                    webAppIconUrl = null
+                }
+                // A fresh session reports an initial about:blank location commit
+                // when it opens, carrying no navigation. Applied blindly it wipes
+                // a URL the tab already holds -- restored tabs lost their URLs to
+                // this within milliseconds of creation, and the next save then
+                // dropped them from restore entirely. The commit is only ever
+                // informative on a tab that has nothing yet.
+                if (url != "about:blank" || (tab.url.isBlank() || tab.url == "about:blank")) {
+                    tab.url = url
+                }
+            }
+            if (tab.id == activeId) {
+                updateAddress()
+                applyWebAppDisplayMode()
+            }
+            refreshTray()
+        }
+
+        override fun onCanGoBack(session: GeckoSession, canGoBack: Boolean) {
+            tabFor(session)?.canGoBack = canGoBack
+        }
+
+        override fun onCanGoForward(session: GeckoSession, canGoForward: Boolean) {
+            tabFor(session)?.canGoForward = canGoForward
+        }
+
+        override fun onLoadError(
+            session: GeckoSession,
+            uri: String?,
+            error: WebRequestError,
+        ): GeckoResult<String> {
+            val tab = tabFor(session)
+            if (tab != null) {
+                tab.isError = true
+                // The error document Gecko loads next reports its own progress
+                // callbacks, but if it never does the spinner would stick on
+                // the failed state. Clear it here; a real load re-sets it.
+                tab.isLoading = false
+            }
+            if (tab?.id == activeId) {
+                progress.visibility = View.GONE
+                homeOverlay.visibility = View.GONE
+                geckoView.visibility = View.VISIBLE
+            }
+            refreshTray()
+            return GeckoResult.fromValue(BrowserErrorPage.dataUri(uri, error))
+        }
+
+        override fun onNewSession(session: GeckoSession, uri: String): GeckoResult<GeckoSession>? {
+            // GeckoView requires onNewSession to return a newly-created, *unopened*
+            // session. It opens the session and loads `uri` itself after this result
+            // completes. Calling newTab()/open()/loadUri() here violates that contract
+            // and crashes the app on window.open(), target=_blank, DRM handshakes,
+            // OAuth, payment, and other sites that open a second browsing context.
+            return try {
+                val opener = tabFor(session)
+                // "Block pop-up windows" means a window the site opened on its own
+                // is refused. Returning null is how GeckoView is told the window
+                // was blocked. A link the user tapped is a top-level navigation,
+                // not a pop-up, so it is unaffected.
+                if (store.blockPopups) {
+                    blockedPopupCount++
+                    android.widget.Toast.makeText(
+                        this@MainActivity,
+                        getString(R.string.popup_blocked),
+                        android.widget.Toast.LENGTH_SHORT,
+                    ).show()
+                    null
+                } else {
+                    GeckoResult.fromValue(createUnopenedPopup(opener?.isPrivate == true))
+                }
+            } catch (_: Exception) {
+                // Returning null tells Gecko the popup was blocked. It is safer than
+                // allowing an embedder-side exception to terminate the browser process.
+                null
+            }
+        }
+    }
+
+    /** Pop-ups refused because the setting blocks them, for the privacy report. */
+    private var blockedPopupCount: Int = 0
+
+    private val progressDelegate = object : GeckoSession.ProgressDelegate {
+        override fun onPageStart(session: GeckoSession, url: String) {
+            selectPendingPopup(session)
+            val tab = tabFor(session) ?: return
+            if (isBlank(url)) {
+                // GeckoView sessions start at about:blank; that is our start
+                // page, not a navigation. Popup sessions are already marked
+                // non-home because Gecko owns their initial load.
+                if (tab.isHome) showHomeState(tab)
+                return
+            }
+            tab.url = url
+            tab.isError = false
+            tab.isLoading = true
+            tab.isHome = false
+            if (!tab.isPrivate) {
+                FaviconCache.load(url) {
+                    if (!isFinishing && !isDestroyed && tabFor(session)?.url == url) {
+                        refreshTray()
+                    }
+                }
+            }
+            if (tab.id == activeId) {
+                homeOverlay.visibility = View.GONE
+                geckoView.visibility = View.VISIBLE
+                progress.visibility = View.VISIBLE
+                updateAddress()
+            }
+            refreshTray()
+        }
+
+        override fun onPageStop(session: GeckoSession, success: Boolean) {
+            val tab = tabFor(session) ?: return
+            tab.isLoading = false
+            if (isBlank(tab.url) || tab.url.startsWith("data:") || tab.isError) return
+            if (success && !tab.isPrivate) {
+                historyStore.add(tab.title, tab.url)
+                suggestionHistory = null
+                }
+            // The URL/title just committed are what restore rebuilds from.
+            // Saving on pause alone leaves every navigation since the last
+            // backgrounding out of the store, so a sudden death (crash,
+            // force-stop) would lose them. Serializing a few dozen small
+            // records per page load is negligible next to the page itself.
+            if (success) {
+                saveTabState()
+                // Capture once a page has finished loading, not on every
+                // progress tick: onPageStop fires once per navigation, so this
+                // is the point at which a fresh preview is actually worth
+                // taking. Only the tab in front can be captured at all.
+                capturePreview(tab)
+            }
+            if (tab.id == activeId) {
+                progress.visibility = View.GONE
+                updateAddress()
+            }
+            refreshTray()
+        }
+
+        override fun onProgressChange(session: GeckoSession, newProgress: Int) {
+            val tab = tabFor(session) ?: return
+            tab.isLoading = newProgress in 1..99
+            if (tab.id == activeId) {
+                progress.visibility = if (newProgress in 1..99) View.VISIBLE else View.GONE
+                progress.progress = newProgress
+            }
+            refreshTray()
+        }
+
+        override fun onSecurityChange(
+            session: GeckoSession,
+            securityInfo: GeckoSession.ProgressDelegate.SecurityInformation,
+        ) {
+            val tab = tabFor(session) ?: return
+            tab.isSecure = securityInfo.isSecure
+            if (tab.id == activeId) updateAddress()
+        }
+    }
+
+    private val contentDelegate = object : GeckoSession.ContentDelegate {
+        override fun onTitleChange(session: GeckoSession, title: String?) {
+            val tab = tabFor(session) ?: return
+            tab.title = title.orEmpty()
+            if (tab.id == activeId) updateAddress()
+            refreshTray()
+        }
+
+        override fun onWebAppManifest(session: GeckoSession, manifest: org.json.JSONObject) {
+            val tab = tabFor(session) ?: return
+            // A manifest arriving from a background tab must not be allowed to
+            // decide what the tab in front looks like. applyWebAppDisplayMode()
+            // reads the shared manifest field and then hides the entire chrome --
+            // address bar, tab tray, menu -- so without this guard a page
+            // declaring `display: standalone` could strip the toolbar off a tab
+            // the user was reading normally. Every sibling callback here already
+            // guards on the active tab; this one did not.
+            if (tab.id != activeId) return
+            webAppManifest = manifest
+            webAppManifestTabId = tab.id
+            webAppUrl = tab.url
+            webAppIconUrl = webAppIcon(manifest, tab.url)
+            webAppIconUrl?.let { FaviconCache.prefetchImage(it) }
+            applyWebAppDisplayMode()
+        }
+
+        override fun onContextMenu(
+            session: GeckoSession,
+            x: Int,
+            y: Int,
+            contextElement: GeckoSession.ContentDelegate.ContextElement,
+        ) {
+            showContextMenu(session, contextElement)
+        }
+
+        override fun onCrash(session: GeckoSession) {
+            showContentProcessFailure(session, R.string.page_crashed)
+        }
+
+        override fun onKill(session: GeckoSession) {
+            showContentProcessFailure(session, R.string.page_stopped)
+        }
+
+        override fun onFirstComposite(session: GeckoSession) {
+            // This is the earliest reliable point at which GeckoView has finished
+            // opening a session returned from onNewSession.
+            selectPendingPopup(session)
+        }
+
+        override fun onCloseRequest(session: GeckoSession) {
+            // Handle window.close() and web-content close requests without leaving
+            // stale sessions in the tab tray.
+            tabFor(session)?.let { closeTab(it.id) }
+        }
+
+        override fun onFullScreen(session: GeckoSession, isFullScreen: Boolean) {
+            if (tabFor(session)?.id != activeId) return
+            setBrowserFullscreen(session, isFullScreen)
+        }
+
+        override fun onExternalResponse(session: GeckoSession, response: WebResponse) {
+            if (isInternalOnlyUri(response.uri)) {
+                // javascript:/data: are executed inside the page, never handed to
+                // Android. Letting one reach the system leaks the script body into
+                // the share sheet and any other app that claims VIEW intents.
+                return
+            }
+            val scheme = response.uri.trimStart().lowercase().substringBefore(':')
+            // Only a scheme Android owns is handed off. A *file* the engine chose
+            // to delegate is still a download: sending its URL to another app
+            // re-fetches it without this session's cookies, bypasses the
+            // download engine and its safety check, and on most devices ends in a
+            // "no app found" toast with nothing saved.
+            if (response.requestExternalApp && scheme in HANDOFF_SCHEMES) {
+                openExternalUri(response.uri)
+                return
+            }
+            session.getUserAgent().accept { userAgent ->
+                // Gecko has already fetched this response with the session
+                // cookie attached, so its body is the only copy we can get for
+                // a file behind a sign-in. Re-requesting the URL here would
+                // return the login page instead.
+                enqueueDownload(
+                    response.uri,
+                    response.headers,
+                    userAgent,
+                    response.headers.entries.firstOrNull { it.key.equals("Content-Type", true) }?.value,
+                    body = response.body,
+                    contentLength = response.headers.entries
+                        .firstOrNull { it.key.equals("Content-Length", true) }
+                        ?.value?.toLongOrNull() ?: -1L,
+                )
+            }
+        }
+    }
+
+    /** Schemes the page executes itself; never forward these to Android. */
+    private fun isInternalOnlyUri(uri: String): Boolean {
+        val lower = uri.trimStart().lowercase()
+        return lower.startsWith("javascript:") || lower.startsWith("data:") ||
+            lower.startsWith("blob:") || lower.startsWith("about:")
+    }
+
+    private fun selectPendingPopup(session: GeckoSession) {
+        val tab = tabFor(session) ?: return
+        if (!tab.selectWhenOpened || !session.isOpen || isFinishing || isDestroyed) return
+        tab.selectWhenOpened = false
+        selectTab(tab.id)
+    }
+
+    /**
+     * Fills a login form from the encrypted local vault when the user focuses a
+     * login field. GeckoView 147 routes field focus through
+     * `Autofill.Delegate`; without this, the vault could be written but never
+     * read back into a page.
+     */
+    /**
+     * Offers the saved login for this site so the user can copy it into the form.
+     *
+     * The value is deliberately not injected into the page. GeckoView 147
+     * installs its own `Autofill.Delegate` when the view attaches (so
+     * `session.autofillDelegate` cannot be used), and it exposes no scripting
+     * API, so a `javascript:` fill both failed to run and leaked the script to
+     * the system share sheet. Copying is explicit, works everywhere, and never
+     * hands page content to another app.
+     */
+    private fun fillLoginFromVault(tab: Tab) {
+        val url = tab.url
+        if (url.isBlank() || tab.isHome) return
+        val login = loginStore.forOrigin(url).firstOrNull()
+        if (login == null) {
+            Toast.makeText(this, R.string.no_saved_login, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val clipboard = getSystemService(android.content.ClipboardManager::class.java)
+        AlertDialog.Builder(this)
+            .setTitle(R.string.fill_login)
+            .setItems(
+                arrayOf(getString(R.string.copy_username), getString(R.string.copy_password)),
+            ) { _, which ->
+                val value = if (which == 0) login.username else login.password
+                clipboard?.setPrimaryClip(
+                    android.content.ClipData.newPlainText(getString(R.string.app_name), value),
+                )
+                Toast.makeText(
+                    this,
+                    if (which == 0) R.string.username_copied else R.string.password_copied,
+                    Toast.LENGTH_SHORT,
+                ).show()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private val autofillDelegate = object : Autofill.Delegate {
+        override fun onNodeFocus(
+            session: GeckoSession,
+            node: Autofill.Node,
+            nodeData: Autofill.NodeData,
+        ) {
+            runCatching { autofillFromVault(session, node) }
+        }
+    }
+
+    private fun autofillFromVault(session: GeckoSession, focused: Autofill.Node) {
+        // Every one of these traces sits on the path to a password field, so the
+        // logs are diagnostics and nothing else: no URL, no field hints, no
+        // attribute dumps. Logcat on a shared or compromised device is readable
+        // by anything with READ_LOGS, and a line naming the site the user is
+        // logging into is browsing data written where it does not belong. The
+        // traces stay behind BuildConfig.DEBUG so the flow can still be
+        // followed while developing; a release build emits nothing at all.
+        val trace = if (BuildConfig.DEBUG) {
+            { message: String -> android.util.Log.d(AUTOFILL_TAG, message) }
+        } else {
+            { _: String -> }
+        }
+        val autofillSession = session.autofillSession
+        if (autofillSession == null) {
+            trace("no autofill session")
+            return
+        }
+        val root = autofillSession.root
+        if (root == null) {
+            trace("no autofill root")
+            return
+        }
+        val nodes = collectNodes(root)
+        trace("walked ${nodes.size} nodes")
+        val password = nodes.firstOrNull { isPasswordField(it) }
+        if (password == null) {
+            trace("no password field among ${nodes.size} nodes")
+            return
+        }
+        if (!isPasswordField(focused) && !isUsernameField(focused)) {
+            trace("focused node is not a login field")
+            return
+        }
+        val url = tabFor(session)?.url
+        if (url == null) {
+            trace("no tab for session")
+            return
+        }
+        val login = loginStore.forOrigin(url).firstOrNull()
+        if (login == null) {
+            // Deliberately not the URL: which origin has no saved login is
+            // exactly the question a log reader should not be able to ask.
+            trace("no stored login for this origin")
+            return
+        }
+        val values = android.util.SparseArray<CharSequence>()
+        autofillSession.dataFor(password)?.let { values.put(it.id, login.password) }
+        nodes.firstOrNull { isUsernameField(it) }?.let { userNode ->
+            autofillSession.dataFor(userNode)?.let { values.put(it.id, login.username) }
+        }
+        trace("filling ${values.size()} field(s)")
+        if (values.size() > 0) {
+            runOnUiThread {
+                runCatching { autofillSession.autofill(values) }
+                    .onFailure {
+                        if (BuildConfig.DEBUG) {
+                            android.util.Log.w(AUTOFILL_TAG, "autofill failed", it)
+                        }
+                    }
+            }
+        }
+    }
+
+    private fun collectNodes(node: Autofill.Node): List<Autofill.Node> {
+        val out = mutableListOf<Autofill.Node>()
+        fun walk(current: Autofill.Node) {
+            out += current
+            current.children?.forEach(::walk)
+        }
+        walk(node)
+        return out
+    }
+
+    private fun findNode(
+        node: Autofill.Node,
+        predicate: (Autofill.Node) -> Boolean,
+    ): Autofill.Node? {
+        if (predicate(node)) return node
+        node.children?.forEach { child ->
+            findNode(child, predicate)?.let { return it }
+        }
+        return null
+    }
+
+    private fun isPasswordField(node: Autofill.Node): Boolean {
+        if (node.getHint() == Autofill.Hint.PASSWORD) return true
+        val attrs = node.getAttributes() ?: return false
+        return attrs["type"]?.lowercase() == "password" ||
+            attrs["autocomplete"]?.lowercase() in listOf("current-password", "new-password")
+    }
+
+    private fun isUsernameField(node: Autofill.Node): Boolean {
+        if (node.getHint() == Autofill.Hint.USERNAME) return true
+        val attrs = node.getAttributes() ?: return false
+        val autocomplete = attrs["autocomplete"]?.lowercase().orEmpty()
+        if (autocomplete == "username" || autocomplete == "email") return true
+        return autocomplete.isEmpty() && attrs["type"]?.lowercase() in listOf("email", "text")
+    }
+
+    private val contentBlockingDelegate = object : ContentBlocking.Delegate {
+        override fun onContentBlocked(session: GeckoSession, event: ContentBlocking.BlockEvent) {
+            if (!event.isBlocking) return
+            val tab = tabFor(session) ?: return
+            // A blocked request is not automatically a tracker. Only
+            // anti-tracking blocks count towards the tracker figure; a Safe
+            // Browsing verdict is a threat, and a cookie-behaviour block is
+            // neither. Mixing them made the privacy report claim a tracker was
+            // blocked when a phishing page was.
+            when {
+                event.getSafeBrowsingCategory() != 0 -> {
+                    tab.threats++
+                    store.cumulativeThreats = store.cumulativeThreats + 1
+                }
+                event.getAntiTrackingCategory() != 0 -> {
+                    tab.trackers++
+                    store.cumulativeTrackers = store.cumulativeTrackers + 1
+                }
+            }
+            if (tab.id == activeId) updateTrackers()
+        }
+    }
+
+    // ---- lifecycle ----
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+        SystemBars.apply(this)
+        attachContext(this)
+        store = PrivacyStore(this)
+        historyStore = HistoryStore(this)
+        bookmarkStore = BookmarkStore(this)
+        sessionStore = BrowserSessionStore(this)
+        sitePermissionStore = SitePermissionStore(this)
+        loginStore = LoginStore(this)
+        mediaController = BrowserMediaController(this)
+        privateIndicator = PrivateBrowsingNotifier(this)
+
+        permissionDelegate = BrowserPermissionDelegate(
+            this,
+            sitePermissionStore,
+            currentOrigin = { session -> session?.let(::tabFor)?.url ?: activeTab()?.url },
+            currentPrivate = { session -> session?.let(::tabFor)?.isPrivate ?: (activeTab()?.isPrivate == true) },
+        ) { permissions, completion ->
+            permissionCompletions.add(completion)
+            try {
+                permissionLauncher.launch(permissions)
+            } catch (_: Exception) {
+                val pending = permissionCompletions.toList()
+                permissionCompletions.clear()
+                pending.forEach { it(false) }
+            }
+        }
+        promptDelegate = BrowserPromptDelegate(
+            activity = this,
+            launchFilePicker = { filePickerLauncher.launch(it) },
+            launchCamera = { cameraLauncher.launch(it) },
+            requestCameraPermission = { completion ->
+                permissionDelegate.ensureAndroidPermissions(
+                    arrayOf(android.Manifest.permission.CAMERA),
+                    completion,
+                )
+            },
+            launchShare = { title, text, uri ->
+                val shared = listOfNotNull(text?.takeIf { it.isNotBlank() }, uri?.takeIf { it.isNotBlank() })
+                    .joinToString("\n")
+                val intent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_SUBJECT, title.orEmpty())
+                    putExtra(Intent.EXTRA_TEXT, shared)
+                }
+                startActivity(Intent.createChooser(intent, getString(R.string.share)))
+            },
+        )
+
+        if (runtime == null) {
+            runtime = createRuntime()
+        } else {
+            // The runtime outlives the activity, so every delegate that captures
+            // it has to be re-pointed at the new instance. The service-worker
+            // delegate was missing here: it kept calling createUnopenedPopup on
+            // the destroyed activity, whose stores were stale.
+            runtime?.setWebNotificationDelegate(webNotificationDelegate)
+            runtime?.setAutocompleteStorageDelegate(BrowserAutocompleteDelegate(loginStore))
+            runtime?.setServiceWorkerDelegate(serviceWorkerDelegate)
+        }
+
+        geckoView = findViewById(R.id.geckoview)
+        pullRefresh = findViewById(R.id.pull_refresh)
+        wirePullToRefresh()
+        browserControls = findViewById(R.id.browser_controls)
+        homeOverlay = findViewById(R.id.home_overlay)
+        progress = findViewById(R.id.progress)
+        addressText = findViewById(R.id.address_text)
+        securityIndicator = findViewById(R.id.security_indicator)
+        tabsCount = findViewById(R.id.tabs_count)
+        geckoView.setAutofillEnabled(true)
+        findViewById<View>(R.id.btn_pip).setOnClickListener { enterPictureInPicture() }
+
+        findViewById<View>(R.id.engine_picker).setOnClickListener { showEnginePicker() }
+        updateEngineBadge()
+        // The home shortcuts are not rendered here. This runs before the first
+        // navigation and it parses the whole history and bookmark JSON, then does
+        // a nested history-x-bookmark scan, all on the main thread, for an overlay
+        // that is still hidden. On a launch that carries a URL -- tapping a link in
+        // another app, say -- that overlay is never shown, so the work is pure
+        // waste in front of the first page render. selectTab renders the
+        // shortcuts when it actually reveals the overlay instead.
+        addressText.setOnEditorActionListener { v, actionId, _ ->
+            // Only the action keys navigate. Returning true unconditionally
+            // swallowed every editor action the IME sends, including the ones
+            // that are not a request to go anywhere.
+            val isGo = actionId == android.view.inputmethod.EditorInfo.IME_ACTION_UNSPECIFIED ||
+                actionId == android.view.inputmethod.EditorInfo.IME_ACTION_NONE ||
+                actionId == android.view.inputmethod.EditorInfo.IME_ACTION_GO ||
+                actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH ||
+                actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEND ||
+                actionId == android.view.inputmethod.EditorInfo.IME_ACTION_NEXT ||
+                actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE
+            if (!isGo) return@setOnEditorActionListener false
+            // Read the text BEFORE editing ends. leaveEditing() clears focus,
+            // and the focus listener calls updateAddress(), which puts the tab's
+            // title back into the field -- so reading afterwards navigated to
+            // the previous page's title and threw away the query. Measured: with
+            // "zzqqxxtest" typed over the IANA tab, Go searched for
+            // "Internet Assigned Numbers Authority".
+            val query = v.text?.toString().orEmpty()
+            // Editing ends before navigate() so the result never loads behind a
+            // keyboard the user has just dismissed.
+            leaveEditing()
+            navigate(query)
+            true
+        }
+        addressText.setOnFocusChangeListener { _, focused ->
+            if (focused) {
+                // The field shows the page title while it is not in front (the
+                // "preview"), which is what makes a long URL readable. On focus
+                // the URL itself has to come back, because that is what the
+                // user is about to edit -- and it is selected in full, so a
+                // single keystroke replaces the whole thing. Without the
+                // setText() the selection would land on the title, and the
+                // first keystroke would rewrite the title instead of the
+                // address the user thinks they are editing.
+                val tab = activeTab()
+                if (tab != null && !tab.isHome && tab.url.isNotBlank()) {
+                    val url = tab.url
+                    if (addressText.text.toString() != url) addressText.setText(url)
+                    // Posted, not called directly: the tap that caused
+                    // this focus change is still being processed, and it
+                    // would place the cursor at the tap point and undo a
+                    // selection made here. Running after that handling
+                    // is what makes the whole URL selected.
+                    addressText.post {
+                        if (addressText.hasFocus()) {
+                            addressText.setSelection(0, addressText.text.length)
+                        }
+                    }
+                }
+                updateSuggestions(addressText.text.toString())
+            } else {
+                hideSuggestions()
+                // updateAddress() restores the title preview now that the
+                // field has stopped being edited.
+                updateAddress()
+            }
+        }
+        // No long-press listener on the address field on purpose. Swallowing the
+        // long press replaced the platform's own text menu, so a user who wanted
+        // to select, cut or paste part of a URL could not. The page actions that
+        // used to live here are in the menu sheet instead, where they are
+        // reachable without a gesture that collides with text editing.
+        addressText.doAfterTextChanged { text ->
+            if (addressText.hasFocus()) updateSuggestions(text?.toString().orEmpty())
+        }
+        val voice = findViewById<View>(R.id.btn_voice)
+        voice.visibility = if (store.voiceSearch) View.VISIBLE else View.GONE
+        voice.setOnClickListener { startVoiceSearch() }
+        findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.suggestions_list).apply {
+            suggestionsList = this
+            layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this@MainActivity)
+            adapter = SuggestionsAdapter(emptyList()).also { suggestionsAdapter = it }
+            installSuggestionCap(this)
+        }
+        tabsCount.setOnClickListener { showTabsSheet() }
+        val menuButton = findViewById<View>(R.id.btn_menu)
+        menuButton.setOnClickListener { showMenuSheet() }
+        // Both bottom-bar controls keep the size they have always been drawn at.
+        // The touch area is widened instead, so nothing about the bar's appearance
+        // changes while both stay reachable.
+        enlargeTouchTargets(tabsCount, menuButton)
+
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                // Back peels off one layer of transient state at a time, and
+                // editing outranks navigation. While the address field holds
+                // focus the user is reading or changing what they typed; going
+                // back in page history underneath them throws that text away
+                // without ever putting the keyboard away, and the page they land
+                // on is not one they asked for. Android gives the IME first
+                // refusal on Back, so with the soft keyboard up this arm is
+                // reached only once the keyboard has already gone and the field
+                // still has focus -- the second press of a two-press exit.
+                if (addressText.hasFocus() || suggestionsBox?.visibility == View.VISIBLE) {
+                    hideSuggestions()
+                    leaveEditing()
+                    return
+                }
+                val tab = activeTab()
+                if (fullscreenSession != null) {
+                    setBrowserFullscreen(tab?.session ?: return, false)
+                } else if (tab != null && !tab.isHome && tab.canGoBack) {
+                    tab.session.goBack()
+                }
+                else {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                }
+            }
+        })
+
+        restoreTabsIfAvailable()
+        maybeStartOnboarding()
+        // savedInstanceState != null means we are recreating the Activity from
+        // saved state. A launch intent that was already handled before the
+        // process died must not create a second tab for the same request, so
+        // the external-link branch below is gated on it.
+        handleIntent(intent, freshLaunch = savedInstanceState == null)
+    }
+
+    /**
+     * Puts the first-run walkthrough in front of the browser once.
+     *
+     * The browser keeps initialising underneath, because unwinding that would mean
+     * a half-built activity sitting in the back stack, and the walkthrough is one
+     * activity wide. An incoming link is therefore not lost: `handleIntent` still
+     * runs, and the tab is there the moment the walkthrough closes.
+     */
+    private fun maybeStartOnboarding() {
+        if (!OnboardingActivity.isNeeded(this)) return
+        startActivity(Intent(this, OnboardingActivity::class.java))
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        // Warm-start delivery: the app was already running, so this is a
+        // genuine new external request even though no Activity was recreated.
+        handleIntent(intent, freshLaunch = true)
+    }
+
+    private fun handleIntent(intent: Intent?, freshLaunch: Boolean = true) {
+        if (intent == null) return
+        intent.getStringExtra(EXTRA_WEB_APP)?.let { appUrl ->
+            intent.removeExtra(EXTRA_WEB_APP)
+            webAppOrigin = runCatching { Uri.parse(appUrl).host }.getOrNull()
+        }
+        intent.getStringExtra(EXTRA_NOTIFICATION_URL)?.let { notificationUrl ->
+            intent.removeExtra(EXTRA_NOTIFICATION_URL)
+            if (tabs.isEmpty()) newTab(isPrivate = false, select = true)
+            navigate(notificationUrl)
+            return
+        }
+        if (intent.action == ACTION_DATA_CLEARED) {
+            sanitize(keepPage = false)
+            return
+        }
+        if (intent.action == Intent.ACTION_SEND || intent.action == Intent.ACTION_SEND_MULTIPLE) {
+            openSharedText(intent)
+            return
+        }
+        when (intent.action) {
+            ACTION_PRIVATE_TAB -> {
+                newTab(isPrivate = true, select = true)
+                return
+            }
+            ACTION_ABOUT -> {
+                if (tabs.isEmpty()) newTab(isPrivate = false, select = true)
+                showAbout()
+                return
+            }
+        }
+        val data = intent.data?.toString()
+        // A VIEW intent with an extension's own page (moz-extension://…) gets
+        // the same treatment as a link from another app: it opens in a new
+        // tab, so opening an add-on's settings never throws away the page the
+        // user is currently reading.
+        val opensInNewTab = intent.action == Intent.ACTION_VIEW && data != null &&
+            (data.startsWith("http://", ignoreCase = true) ||
+                data.startsWith("https://", ignoreCase = true) ||
+                data.startsWith("moz-extension:", ignoreCase = true))
+
+        // External links always open in a new tab, so a link from
+        // another app can never replace the page the user was reading. Existing
+        // tabs stay where they are and the new tab becomes active. The tab is
+        // created before navigate() runs, so navigate() lands in it.
+        if (opensInNewTab) {
+            newTab(isPrivate = false, select = true, skipHomepage = true)
+        } else if (tabs.isEmpty()) {
+            newTab(isPrivate = false, select = true)
+        }
+        if (data != null) {
+            navigate(data)
+        } else if (store.homepage != HOME_START && activeTab()?.isHome == true) {
+            navigate(store.homepage)
+        }
+    }
+
+    /**
+     * Share-into-the-browser. Plain text, HTML, a subject line and multiple
+     * shared items are all accepted; the first usable value is what gets opened,
+     * so a share from a mail or notes app lands on the right page.
+     */
+    private fun openSharedText(intent: Intent) {
+        val extras = mutableListOf<CharSequence>()
+        intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.let { extras += it }
+        @Suppress("DEPRECATION")
+        intent.getStringArrayListExtra(Intent.EXTRA_TEXT)?.let { extras += it }
+        val subject = intent.getStringExtra(Intent.EXTRA_SUBJECT).orEmpty()
+        intent.removeExtra(Intent.EXTRA_TEXT)
+        intent.removeExtra(Intent.EXTRA_SUBJECT)
+        val body = extras.joinToString("\n")
+            .replace(Regex("<[^>]+>"), " ")
+            .replace("&nbsp;", " ")
+            .trim()
+        val payload = listOf(body, subject)
+            .firstOrNull { it.isNotBlank() }
+            .orEmpty()
+        if (payload.isBlank()) return
+        if (tabs.isEmpty()) newTab(isPrivate = false, select = true)
+        if (body.isNotBlank()) navigate(body) else navigate(subject)
+    }
+
+    private fun restoreTabsIfAvailable() {
+        if (tabs.isNotEmpty()) return
+        val restored = sessionStore.tabs()
+        if (restored.isEmpty()) return
+        val created = restored.map { saved ->
+            newTab(isPrivate = false, select = false, id = saved.id).also { tab ->
+                tab.isHome = false
+                tab.url = saved.url
+                tab.title = saved.title
+                tab.lastActiveAt = saved.lastActiveAt
+            }
+        }
+        // The current tab is matched on the stable id the store saved. It used
+        // to be matched on URL, which picked the wrong tab whenever two of them
+        // showed the same page -- and that is not a rare case: duplicate tabs,
+        // a redirect, and two windows onto one site all produce it.
+        val savedActiveId = sessionStore.activeId()
+        val selected = created.firstOrNull { it.id == savedActiveId }
+            // Schema 1 wrote no id, only a URL.
+            ?: created.firstOrNull { it.url == sessionStore.activeUrl() }
+            ?: created.first()
+        // Only the tab in front loads now; the rest load on first selection
+        // (selectTab honors needsLoad). A cold start with many tabs used to
+        // fire every navigation at once before the first page could render.
+        created.forEach { if (it.id != selected.id) it.needsLoad = true }
+        selected.session.loadUri(selected.url)
+        selectTab(selected.id)
+    }
+
+    private fun saveTabState() {
+        if (!::sessionStore.isInitialized) return
+        sessionStore.saveTabs(
+            tabs.filter {
+                !it.isPrivate && !it.isHome && !it.isError && it.url.isNotBlank() &&
+                    !it.url.startsWith("data:") && it.url != "about:blank"
+            }.map {
+                RestorableTab(it.id, it.url, it.title, it.lastActiveAt)
+            },
+            // Only a normal tab can be restored, so an active private tab or the
+            // start page must not write an id nothing will ever match.
+            activeTab()?.takeIf { !it.isPrivate && !it.isHome && !it.isError }?.id,
+        )
+    }
+
+    override fun onSaveInstanceState(outState: android.os.Bundle) {
+        saveTabState()
+        super.onSaveInstanceState(outState)
+    }
+
+    override fun onPause() {
+        saveTabState()
+        // An immersive web app hides the address bar, the tab tray and the menu
+        // on purpose. That makes the activity unkillable by swipe-away in the
+        // recents switcher, which strands the user on a fullscreen page with no
+        // visible way back into the browser other than a notification tap. The
+        // windows themselves are left alone -- this is the chrome, not the page.
+        if (immersiveMode) {
+            chromeRevealed = true
+            applyChromeVisibility()
+        }
+        super.onPause()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // History and Bookmarks screens edit their stores while this activity
+        // is stopped, so the suggestion cache is dropped on the way back in.
+        // Without this, suggestions would show entries the user just deleted.
+        suggestionHistory = null
+        suggestionBookmarks = null
+        // Tapping or swiping the private-browsing reminder is only observable
+        // here, on the way back into the app, so this is where the dismissal is
+        // noticed. It also covers a launch that restored tabs without going
+        // through selectTab.
+        if (::privateIndicator.isInitialized) {
+            privateIndicator.onResume(activeTab()?.isPrivate == true)
+        }
+        // The search engine badge reflects whatever engine is stored now:
+        // changing it in Settings and coming back must update the letter,
+        // otherwise the bar keeps showing the engine that was live before.
+        updateEngineBadge()
+    }
+
+    @Suppress("DEPRECATION")
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        // These constants are NOT ordered the way the arithmetic reads:
+        //   TRIM_MEMORY_RUNNING_MODERATE  5   foreground, own footprint rising
+        //   TRIM_MEMORY_RUNNING_LOW      10   foreground, low memory
+        //   TRIM_MEMORY_RUNNING_CRITICAL 15   foreground, critical
+        //   TRIM_MEMORY_UI_HIDDEN        20   the user left; says nothing about memory
+        //   TRIM_MEMORY_BACKGROUND       40   backgrounded, reclaim candidate
+        //   TRIM_MEMORY_MODERATE         60   backgrounded, strong reclaim candidate
+        //   TRIM_MEMORY_COMPLETE         80   about to be killed
+        //
+        // Two different responses, because the two signals mean different things.
+        //
+        // Dropping cache is cheap and invisible, so it answers every signal that
+        // carries any memory implication at all.
+        //
+        // Closing a tab's GeckoSession is destructive and visible: the page loses
+        // its scroll position, its form contents and its JS state, and the user
+        // gets the top of the article again. That answer is reserved for signals
+        // where the process is genuinely in trouble.
+        //
+        // UI_HIDDEN and BACKGROUND are deliberately NOT in the destructive set.
+        // Both are routine lifecycle deliveries, not pressure: measured on a vivo
+        // I2214 (Android 16), pressing HOME produced level=20 followed by
+        // level=40, and every background session past the two most recent was
+        // torn down and rebuilt from its URL. Treating either as pressure means
+        // the browser silently discards page state every time the user switches
+        // apps. MODERATE and COMPLETE are kept because those arrive when the
+        // system is about to reclaim the process anyway.
+        val cacheable = level >= android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW
+        val destructive = level == android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL ||
+            level == android.content.ComponentCallbacks2.TRIM_MEMORY_MODERATE ||
+            level == android.content.ComponentCallbacks2.TRIM_MEMORY_COMPLETE
+        if (cacheable) {
+            runCatching { runtime?.storageController?.clearData(StorageController.ClearFlags.ALL_CACHES) }
+            // Previews are the cheapest thing here to give up: they are
+            // regenerated on the next switch, and dropping them costs the user a
+            // placeholder thumbnail rather than a page. Anything that still
+            // holds one does so only until the next bind, and the cache is
+            // byte-bounded, so this cannot be what is pushing the process out.
+            previews.clear()
+        }
+        if (destructive) {
+            suspendBackgroundTabs()
+        }
+    }
+
+    override fun onLowMemory() {
+        super.onLowMemory()
+        suspendBackgroundTabs()
+    }
+
+    /**
+     * Memory pressure. The tab list is kept intact and the active tab plus the
+     * most recently used background tabs keep their sessions; everything older
+     * loses its Gecko session, so the tray, history and recently-closed still
+     * work. Selecting a suspended tab reloads its URL (reviveTab). The `keep`
+     * parameter is the total number of live sessions, active tab included.
+     */
+    private fun suspendBackgroundTabs(keep: Int = 3) {
+        if (!::geckoView.isInitialized) return
+        val suspendable = tabs.filter {
+            it.id != activeId && !it.isHome && !it.suspended && it.url.isNotBlank()
+        }.sortedByDescending { it.lastActiveAt }
+        // Active tab always survives; keep-1 most recent background tabs join
+        // it. The old arithmetic (budget = size - keep) closed almost nothing
+        // on a critical trim with a normal tab count, which is exactly when
+        // memory has to be freed.
+        val survivors = suspendable.take((keep - 1).coerceAtLeast(0)).map { it.id }.toSet()
+        val victims = suspendable.filter { it.id !in survivors }
+        victims.forEach { tab ->
+            runCatching { tab.session.close() }
+            tab.suspended = true
+        }
+        // Private tabs are no longer excluded. Suspending one closes its
+        // session, which is the strongest thing that can happen to private
+        // state, so it was skipped -- and that meant a user with a wall of
+        // private tabs open got no memory relief at all, since the tabs holding
+        // the memory were precisely the ones left alone. Closing the session is
+        // what discards private data, so suspending is compatible with the
+        // privacy promise: the URL stays in the tab so it can be revived, and
+        // it was already in the tab's own fields before this ran. Private tabs
+        // are never persisted, so nothing reaches disk either way.
+        saveTabState()
+    }
+
+    /**
+     * Capture a thumbnail of the tab currently in front.
+     *
+     * `capturePixels()` is the engine's supported way to get the rendered page,
+     * and it only works for the session attached to the view, which is why this
+     * is called as a tab is left rather than for every tab at once. A background
+     * tab has no attached view and no render to snapshot.
+     *
+     * The capture is full-resolution (a 1080x2400 page is ~9.7 MB as ARGB), so
+     * it is scaled down before it is cached. Storing the raw capture would let
+     * a tray of twenty tabs hold tens of megabytes of bitmaps that are displayed
+     * at a fraction of that size.
+     *
+     * Failures are swallowed deliberately: a preview is a nicety. Keeping the
+     * previous preview, or falling back to the placeholder, is the correct
+     * outcome for a failed capture, and nothing here should be able to break
+     * navigation.
+     */
+    private fun capturePreview(tab: Tab) {
+        if (activeId != tab.id) return
+        if (tab.isHome || tab.url.isBlank()) return
+        if (!::geckoView.isInitialized) return
+        runCatching {
+            // The two-argument accept, so a rejection is visible rather than
+            // silently leaving the tab without a preview. The failure path is
+            // deliberately non-fatal -- a preview is a nicety -- but it is
+            // logged, because "no previews ever appear" is otherwise
+            // indistinguishable from "previews are working".
+            geckoView.capturePixels().accept(
+                { captured ->
+                    val bmp = captured
+                    if (bmp == null || bmp.isRecycled) {
+                        android.util.Log.w(TAG_PREVIEW, "capture for tab ${tab.id} returned no bitmap")
+                        return@accept
+                    }
+                    val longest = maxOf(bmp.width, bmp.height)
+                    val target = 640
+                    val stored = if (longest > target) {
+                        val factor = target.toFloat() / longest
+                        Bitmap.createScaledBitmap(
+                            bmp,
+                            (bmp.width * factor).toInt().coerceAtLeast(1),
+                            (bmp.height * factor).toInt().coerceAtLeast(1),
+                            true,
+                        )
+                    } else {
+                        bmp
+                    }
+                    previews.put(tab.id, stored)
+                    android.util.Log.i(
+                        TAG_PREVIEW,
+                        "captured tab ${tab.id}: ${stored.width}x${stored.height}",
+                    )
+                },
+                { err ->
+                    android.util.Log.w(TAG_PREVIEW, "capture for tab ${tab.id} failed: $err")
+                },
+            )
+        }
+    }
+
+    private fun reviveTab(tab: Tab) {
+        if (!tab.suspended) return
+        tab.suspended = false
+        tab.session = createSession(isPrivate = tab.isPrivate)
+        // The state this tab had before it was suspended is gone; only the URL
+        // survives. That is the deliberate trade documented on
+        // suspendBackgroundTabs, and it applies to private tabs too now.
+        tab.canGoBack = false
+        tab.canGoForward = false
+        tab.isLoading = false
+        if (tab.url.isNotBlank()) tab.session.loadUri(tab.url)
+    }
+
+    /** Engine settings built from LibreWolf desktop defaults. Applied at startup. */
+    private fun buildRuntimeSettings(): GeckoRuntimeSettings {
+        val dohProviders = ZyphraDefaults.DOH_PROVIDERS
+        val doh = dohProviders[store.dohProvider.coerceIn(dohProviders.indices)]
+        val cbBuilder = ContentBlocking.Settings.Builder()
+            .enhancedTrackingProtectionLevel(
+                if (store.etpStrict) ContentBlocking.EtpLevel.STRICT
+                else ContentBlocking.EtpLevel.DEFAULT,
+            )
+            .strictSocialTrackingProtection(store.blockSocialTrackers)
+            .cookieBehavior(
+                when {
+                    store.blockAllCookies -> ContentBlocking.CookieBehavior.ACCEPT_NONE
+                    store.blockThirdPartyCookies -> ContentBlocking.CookieBehavior.ACCEPT_FIRST_PARTY_AND_ISOLATE_OTHERS
+                    else -> ContentBlocking.CookieBehavior.ACCEPT_ALL
+                },
+            )
+            .cookieBehaviorPrivateMode(
+                ContentBlocking.CookieBehavior.ACCEPT_FIRST_PARTY_AND_ISOLATE_OTHERS,
+            )
+            .cookiePurging(true)
+            .allowListBaselineTrackingProtection(true)
+            .allowListConvenienceTrackingProtection(false)
+            .queryParameterStrippingEnabled(true)
+            .queryParameterStrippingPrivateBrowsingEnabled(true)
+            .queryParameterStrippingStripList(*ZyphraDefaults.QUERY_STRIP_LIST.toTypedArray())
+            .queryParameterStrippingAllowList(ZyphraDefaults.QUERY_STRIP_ALLOW)
+            .safeBrowsing(
+                if (store.safeBrowsingMode == 0) ContentBlocking.SafeBrowsing.NONE
+                else ContentBlocking.SafeBrowsing.DEFAULT,
+            )
+        if (store.safeBrowsingMode == 0) cbBuilder.safeBrowsingProviders()
+        val cb = cbBuilder.build()
+        val trrMode = when (store.dohMode) {
+            1 -> GeckoRuntimeSettings.TRR_MODE_FIRST
+            2 -> GeckoRuntimeSettings.TRR_MODE_ONLY
+            else -> GeckoRuntimeSettings.TRR_MODE_DISABLED
+        }
+        return GeckoRuntimeSettings.Builder()
+            .javaScriptEnabled(store.javascriptEnabled)
+            .contentBlocking(cb)
+            .allowInsecureConnections(
+                when (store.httpsMode) {
+                    1 -> GeckoRuntimeSettings.HTTPS_ONLY_PRIVATE
+                    2 -> GeckoRuntimeSettings.HTTPS_ONLY
+                    else -> GeckoRuntimeSettings.ALLOW_ALL
+                },
+            )
+            .trustedRecursiveResolverUri(doh.uri)
+            .trustedRecursiveResolverMode(trrMode)
+            .globalPrivacyControlEnabled(store.doNotTrack)
+            .loginAutofillEnabled(true)
+            .crashHandler(GeckoCrashService::class.java)
+            .crashPullNeverShowAgain(true)
+            // Never in an ordinary build. A debuggable build offers the switch
+            // so a tester can attach DevTools; a release build ignores the
+            // stored preference entirely, so a setting flipped on a debug build
+            // and carried over by a reinstall cannot open the socket.
+            .remoteDebuggingEnabled(BuildConfig.DEBUG && store.remoteDebugging)
+            .setLnaEnabled(true)
+            .setLnaBlocking(true)
+            .setLnaBlockTrackers(true)
+            .build()
+    }
+
+    private fun createRuntime(): GeckoRuntime {
+        val rt = GeckoRuntime.create(this, buildRuntimeSettings())
+        rt.settings.cookieBehaviorOptInPartitioning = true
+        rt.setAutocompleteStorageDelegate(BrowserAutocompleteDelegate(loginStore))
+        rt.setWebNotificationDelegate(webNotificationDelegate)
+        rt.setServiceWorkerDelegate(serviceWorkerDelegate)
+        applyEnginePreferences()
+        applyPrivacyOverrides(rt)
+        registerDownloadRefresher()
+        return rt
+    }
+
+    /**
+     * Fingerprinting protection, applied to the live runtime.
+     *
+     * The builder does not expose these, so they are set on the runtime after
+     * creation. Standard and strict differ by the engine preference rather than
+     * by the API: standard reduces what a site can read back, strict turns on
+     * full resist-fingerprinting, which also removes APIs a site uses to detect
+     * an automated browser and will break some sign-in flows. That is the
+     * trade the settings screen describes.
+     */
+    @androidx.annotation.OptIn(markerClass = [org.mozilla.geckoview.ExperimentalGeckoViewApi::class])
+    private fun applyPrivacyOverrides(rt: GeckoRuntime) {
+        val enabled = store.fingerprintingMode != 2
+        runCatching { rt.settings.setFingerprintingProtection(enabled) }
+        runCatching { rt.settings.setBaselineFingerprintingProtection(enabled) }
+    }
+
+    /**
+     * Engine preferences the runtime builder does not expose.
+     *
+     * `pdfjs.disabled` matters for downloads: with the built-in PDF viewer on,
+     * GeckoView consumes an `application/pdf` response inside the page and the
+     * embedder never sees it, so a PDF is neither saved by the download engine
+     * nor checked by the download-safety warning. With it off, the response is
+     * handed over like any other file.
+     */
+    // GeckoView marks this pref setter experimental through the AndroidX opt-in
+    // marker, which needs the androidx annotation rather than Kotlin's @OptIn.
+    @androidx.annotation.OptIn(markerClass = [org.mozilla.geckoview.ExperimentalGeckoViewApi::class])
+    private fun applyEnginePreferences() {
+        setGeckoPref("pdfjs.disabled", true)
+        // Strict is the only mode that turns on full resist-fingerprinting, which
+        // is why the settings screen warns that it can break sites.
+        setGeckoPref("privacy.resistFingerprinting", store.fingerprintingMode == 1)
+        // A floor under rendered text. 0 means "no floor", which is the default.
+        setGeckoPref("font.minimum-size.x-western", store.minimumFontSize.toString())
+        // Keeps WebRTC from handing a site the addresses of local interfaces.
+        setGeckoPref("media.peerconnection.ice.default_address_only", store.webrtcDefaultRouteOnly)
+    }
+
+    // GeckoView marks this pref setter experimental through the AndroidX opt-in
+    // marker, which needs the androidx annotation rather than Kotlin's @OptIn.
+    @androidx.annotation.OptIn(markerClass = [org.mozilla.geckoview.ExperimentalGeckoViewApi::class])
+    private fun setGeckoPref(name: String, value: Boolean) {
+        GeckoPreferenceController.setGeckoPref(name, value, GeckoPreferenceController.PREF_BRANCH_USER).accept({ }, { })
+    }
+
+    @androidx.annotation.OptIn(markerClass = [org.mozilla.geckoview.ExperimentalGeckoViewApi::class])
+    private fun setGeckoPref(name: String, value: String) {
+        GeckoPreferenceController.setGeckoPref(name, value, GeckoPreferenceController.PREF_BRANCH_USER).accept({ }, { })
+    }
+
+    /**
+     * Lets a paused download continue. GeckoView owns the cookie jar and offers
+     * no way to read it, so the only way to re-open an authenticated file is to
+     * let Gecko fetch it again in a throwaway session and hand us the body; the
+     * engine then skips the bytes it already has.
+     */
+    private fun registerDownloadRefresher() {        DownloadEngine.setEngineRefresher { url, onBody ->
+            val rt = runtimeRef()
+            if (rt == null) {
+                onBody(null, -1L)
+                return@setEngineRefresher
+            }
+            var delivered = false
+            val session = GeckoSession(GeckoSessionSettings.Builder().build())
+            session.contentDelegate = object : GeckoSession.ContentDelegate {
+                override fun onExternalResponse(session: GeckoSession, response: WebResponse) {
+                    if (delivered) return
+                    delivered = true
+                    val length = response.headers.entries
+                        .firstOrNull { it.key.equals("Content-Length", true) }
+                        ?.value?.toLongOrNull() ?: -1L
+                    onBody(response.body, length)
+                    runCatching { session.close() }
+                }
+            }
+            session.progressDelegate = object : GeckoSession.ProgressDelegate {
+                override fun onPageStop(session: GeckoSession, success: Boolean) {
+                    // A refresh that renders instead of downloading (error page,
+                    // expired session) must not leave the task stuck.
+                    if (delivered || success) return
+                    delivered = true
+                    onBody(null, -1L)
+                    runCatching { session.close() }
+                }
+            }
+            runCatching {
+                session.open(rt)
+                session.loadUri(url)
+            }.onFailure {
+                if (!delivered) {
+                    delivered = true
+                    onBody(null, -1L)
+                }
+            }
+            // GeckoView 147 has no load-error callback, so bound the wait instead
+            // of letting a dead refresh strand the task in "Queued" forever.
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                if (delivered) return@postDelayed
+                delivered = true
+                onBody(null, -1L)
+                runCatching { session.close() }
+            }, REFRESH_TIMEOUT_MS)
+        }
+    }
+
+    // ---- tabs ----
+
+    /**
+     * Feeds the page's scroll offset to the refresh layout.
+     *
+     * `SwipeRefreshLayout` asks its child whether the content can scroll up
+     * before it takes over a downward pull. GeckoView does not answer that
+     * from the engine's scroll state -- it inherits FrameLayout's default of
+     * "no" -- so without this the pull would fire a refresh at every scroll
+     * position instead of only at the top of the page.
+     */
+    private val pageScrollDelegate = object : GeckoSession.ScrollDelegate {
+        override fun onScrollChanged(session: GeckoSession, x: Int, y: Int) {
+            if (::geckoView.isInitialized) geckoView.onPageScrolled(x, y)
+        }
+    }
+
+    /**
+     * Connects the refresh layout to the active session.
+     *
+     * Only a real page can be pulled to refresh. The start page has nothing
+     * to reload, and leaving the gesture live over it would offer a refresh
+     * that does nothing, so it is disabled while the start page is in front.
+     */
+    private fun wirePullToRefresh() {
+        pullRefresh.setOnRefreshListener {
+            val tab = activeTab()
+            if (tab == null || tab.isHome) {
+                pullRefresh.isRefreshing = false
+                return@setOnRefreshListener
+            }
+            if (tab.isError || tab.url.isBlank() || tab.url.startsWith("data:")) {
+                pullRefresh.isRefreshing = false
+                return@setOnRefreshListener
+            }
+            tab.isLoading = true
+            tab.needsLoad = false
+            runCatching { tab.session.reload() }
+        }
+    }
+
+    /** Updates the refresh layout's availability for the tab in front. */
+    private fun updatePullToRefresh(tab: Tab?) {
+        if (!::pullRefresh.isInitialized) return
+        val usable = tab != null && !tab.isHome && !tab.isError &&
+            tab.url.isNotBlank() && !tab.url.startsWith("data:")
+        pullRefresh.isEnabled = usable
+    }
+
+    private fun createSession(isPrivate: Boolean, open: Boolean = true): GeckoSession {
+        val settings = GeckoSessionSettings.Builder().apply {
+            usePrivateMode(isPrivate)
+            allowJavascript(store.javascriptEnabled)
+            // Background audio is the same engine switch as "suspend media when
+            // this session is not in front", so the setting maps to it directly.
+            suspendMediaWhenInactive(!store.backgroundMedia)
+            if (store.desktopMode) {
+                userAgentMode(GeckoSessionSettings.USER_AGENT_MODE_DESKTOP)
+                viewportMode(GeckoSessionSettings.VIEWPORT_MODE_DESKTOP)
+            }
+            if (store.spoofDesktopUserAgent) {
+                // Some banks and streaming services refuse anything that is not a
+                // common desktop browser, even when desktop mode is already on.
+                // This is the same string Firefox sends when a user overrides the
+                // agent by hand, so it is a compatibility switch and not a
+                // fingerprint one; the screen says so.
+                userAgentOverride(MICROMIUM_DESKTOP_UA)
+            }
+        }.build()
+        val session = GeckoSession(settings)
+        session.contentDelegate = contentDelegate
+        session.navigationDelegate = navigationDelegate
+        // Reports the page's scroll offset, which the refresh layout needs
+        // to decide whether a downward pull should scroll the page or
+        // refresh it. GeckoView exposes no getter for this.
+        session.scrollDelegate = pageScrollDelegate
+        session.progressDelegate = progressDelegate
+        session.contentBlockingDelegate = contentBlockingDelegate
+        session.promptDelegate = promptDelegate
+        session.permissionDelegate = permissionDelegate
+        session.autofillDelegate = autofillDelegate
+        session.selectionActionDelegate = BasicSelectionActionDelegate(this)
+        session.mediaSessionDelegate = mediaController.delegate
+        if (open) session.open(runtime ?: error("GeckoRuntime is not initialized"))
+        return session
+    }
+
+    private fun createUnopenedPopup(isPrivate: Boolean): GeckoSession {
+        val popup = Tab(
+            id = nextId++,
+            session = createSession(isPrivate = isPrivate, open = false),
+            isPrivate = isPrivate,
+            isHome = false,
+            // A window the user asked for can take focus; one a site opened on
+            // its own waits in the background so it does not interrupt.
+            selectWhenOpened = store.newTabsInForeground,
+        )
+        tabs.add(popup)
+        updateBadge()
+        refreshTray()
+        return popup.session
+    }
+
+    /**
+     * Mints a tab and its session.
+     *
+     * [id] is supplied only when restoring, so a tab comes back with the
+     * identity it had before process death. Live tabs leave it null and get a
+     * fresh one from the counter, which is then advanced past any restored id
+     * so a later tab can never collide with one that was brought back.
+     */
+    private fun newTab(isPrivate: Boolean, select: Boolean, id: Long? = null, skipHomepage: Boolean = false): Tab {
+        applyCloseTabsPolicy()
+        val tabId = id ?: nextId++
+        if (tabId >= nextId) nextId = tabId + 1
+        val tab = Tab(id = tabId, session = createSession(isPrivate), isPrivate = isPrivate)
+        tabs.add(tab)
+        if (select) {
+            selectTab(tab.id)
+            if (!skipHomepage && store.homepage != HOME_START) navigate(store.homepage)
+        } else {
+            updateBadge()
+        }
+        return tab
+    }
+
+    /** Closes tabs older than the configured retention window (Close tabs setting). */
+    private fun applyCloseTabsPolicy() {
+        val days = store.closeTabsAfterDays
+        if (days <= 0) return
+        val cutoff = System.currentTimeMillis() - days * 86_400_000L
+        val stale = tabs.filter { !it.isPrivate && it.lastActiveAt < cutoff }
+        for (tab in stale) {
+            if (tab.id == activeId) continue
+            tabs.remove(tab)
+            // runCatching because this runs at the top of newTab: a session
+            // already closed by a trim or a crash throws here, and that must not
+            // abort the creation of the tab the user actually asked for.
+            runCatching { tab.session.close() }
+        }
+    }
+
+    /** Tabs unviewed for 14+ days when "Move old tabs to inactive" is enabled. */
+    private fun inactiveIds(): Set<Long> {
+        if (!store.moveOldTabsToInactive) return emptySet()
+        val cutoff = System.currentTimeMillis() - 14 * 86_400_000L
+        return tabs.filter { !it.isPrivate && it.lastActiveAt < cutoff }.map { it.id }.toSet()
+    }
+
+    private fun selectTab(id: Long) {
+        val tab = tabs.find { it.id == id } ?: return
+        // Snapshot the tab being left while its session is still attached to
+        // the view. A background tab has no attached render, so there is no
+        // other point at which its preview can be taken.
+        tabs.firstOrNull { it.id == activeId }?.let { capturePreview(it) }
+        activeId = id
+        // Every path that changes which tab is in front goes through here, so
+        // this is the one place the private-browsing reminder has to be right.
+        privateIndicator.sync(tab.isPrivate)
+        tab.lastActiveAt = System.currentTimeMillis()
+        reviveTab(tab)
+        // A tab left in an error state -- crashed content process, failed load
+        // -- shows a dead page with no way back except this. Retrying on
+        // selection is a single load, not a loop: nothing here re-invokes
+        // selectTab, and a fresh failure simply re-marks the tab.
+        if (tab.needsLoad) {
+            tab.needsLoad = false
+            if (tab.url.isNotBlank()) tab.session.loadUri(tab.url)
+        } else if (tab.isError && !tab.isHome && tab.url.isNotBlank() &&
+            !tab.url.startsWith("data:")
+        ) {
+            tab.isError = false
+            tab.session.reload()
+        }
+        for (candidate in tabs) {
+            val selected = candidate.id == id
+            if (!candidate.suspended && candidate.session.isOpen) {
+                candidate.session.setActive(selected)
+                candidate.session.setFocused(selected)
+            }
+        }
+        // Fullscreen belongs to the session that asked for it. Gecko sends
+        // onFullScreen(false) on its own when a session closes, but a tab switch
+        // does not, so the field kept naming a session that was no longer in
+        // front and the chrome stayed hidden over an ordinary page.
+        if (fullscreenSession != null && fullscreenSession !== tab.session) {
+            fullscreenSession = null
+            chromeRevealed = false
+        }
+        geckoView.setSession(tab.session)
+        // The pull-to-refresh gesture only makes sense over a real page, so
+        // it is switched off for the start page and for error/data: pages.
+        updatePullToRefresh(tab)
+        // Re-applied on every switch, not only on a location change. Leaving a
+        // web app for an ordinary tab used to leave immersiveMode set, which
+        // hides the address bar, the tray and the menu over the tab that came
+        // after it -- the chrome belonged to the tab that had gone.
+        applyWebAppDisplayMode()
+        val home = tab.isHome
+        homeOverlay.visibility = if (home) View.VISIBLE else View.GONE
+        geckoView.visibility = if (home) View.GONE else View.VISIBLE
+        // selectTab is what reveals the home overlay on a fresh launch, so it is
+        // also the only place the shortcuts can be rendered for that case:
+        // showHomeState's path depends on a blank-URL page start, which never
+        // happens when nothing is loaded. Rendering here rather than in onCreate
+        // keeps the parsing off the startup path for the common case of opening
+        // the browser on a URL, where the overlay is never shown at all.
+        updateAddress()
+        updateEngineBadge()
+        updateTrackers()
+        updateBadge()
+        refreshTray()
+    }
+
+    private fun closeTab(id: Long) {
+        val index = tabs.indexOfFirst { it.id == id }
+        if (index == -1) return
+        // Drop the preview with the tab. Leaving it in the cache would hold a
+        // bitmap for a tab that no longer exists, and a recycled id could
+        // otherwise hand that image to an unrelated tab later.
+        previews.remove(id)
+        val removed = tabs[index]
+        if (!removed.isPrivate && !removed.isHome && removed.url.isNotBlank()) {
+            sessionStore.addClosed(removed.url, removed.title)
+        }
+        // Taken out of the list before anything else happens to the selection.
+        // It used to stay in while selectTab ran, so the loop in selectTab
+        // reached the doomed tab, and the neighbour it picked could be the tab
+        // being closed on the next tap. Removal also means any callback still in
+        // flight from the closed session resolves tabFor() to null and is
+        // dropped, which is what stops a late onTitleChange reviving it.
+        tabs.removeAt(index)
+        // A manifest is scoped to the tab that shipped it. Clearing it here
+        // stops a closed web-app tab's display mode from applying to whatever
+        // is selected next, which is the same failure as the fullscreen field
+        // one line below.
+        if (webAppManifestTabId == id) {
+            webAppManifest = null
+            webAppManifestTabId = -1L
+            webAppUrl = null
+            webAppIconUrl = null
+        }
+        if (fullscreenSession === removed.session) {
+            fullscreenSession = null
+            chromeRevealed = false
+        }
+        if (id == activeId) {
+            if (tabs.isNotEmpty()) {
+                // Chrome's rule: the tab to the right, or the one to the left if
+                // the closed tab was last.
+                selectTab(tabs[if (index >= tabs.size) tabs.size - 1 else index].id)
+            } else {
+                // The last tab is going, so something has to take its place. That
+                // is a normal tab even when the one being closed was private:
+                // closing the last private tab is how private browsing is left,
+                // and quietly replacing it with another private tab would make it
+                // impossible to get out of by closing tabs.
+                newTab(isPrivate = false, select = true)
+            }
+        }
+        removed.session.close()
+        updateBadge()
+        // Closing the session is what discards what the private tab held. The
+        // broad clear is only safe when other tabs survive it, and it is skipped
+        // for the emptied case: there the user closed a tab, and answering that
+        // by wiping their cookies and logging them out of everything would be a
+        // surprise nobody asked for.
+        // True when no real browsing session survived the close, so there is
+        // nothing here a broad wipe could disturb.
+        val emptied = tabs.none { !it.isHome }
+        if (removed.isPrivate && !emptied && tabs.none { it.isPrivate }) sanitize(keepPage = true)
+        refreshTray()
+    }
+
+    /**
+     * Pushes fresh tab data into the tray, but only when the tray can be seen.
+     *
+     * Every page start, page stop, title change and favicon arrival used to
+     * rebuild the whole tab list here: `snapshot()` mapped every tab to a new
+     * TabItem, and it was called twice at each of these call sites because the
+     * inactive page needs its own filtered copy. `inactiveIds()` allocated a
+     * Set on the way. All of it then reached `TabsSheet.refresh()`, whose
+     * first statement is `if (dialog?.isShowing != true) return` -- so on a
+     * closed tray the work was built and thrown away on the main thread.
+     *
+     * Skipping it here rather than inside refresh() is safe because opening the
+     * tray does not reuse this instance: showTabsSheet() constructs a fresh
+     * TabsSheet and gives it its own snapshot. The cached `tabs` field on the
+     * closed sheet is never read, so leaving it stale cannot show anything
+     * out of date.
+     */
+    private fun refreshTray() {
+        val sheet = tabsSheet ?: return
+        if (sheet.dialog?.isShowing != true) return
+        val all = snapshot()
+        sheet.refresh(all, all.filter { it.id in inactiveIds() }, trayTrackersText)
+    }
+
+    private fun snapshot(): List<TabItem> =
+        tabs.map {
+            TabItem(
+                it.id,
+                it.title,
+                it.url,
+                it.isPrivate,
+                it.id == activeId,
+                it.isLoading,
+                it.isHome,
+                if (it.isPrivate) null else FaviconCache.cached(it.url),
+                previews.get(it.id),
+            )
+        }
+
+    /**
+     * The count on the tab button.
+     *
+     * It counts the kind of tab that is in front, not every tab: with a private
+     * tab active it is the number of private tabs, otherwise the number of
+     * normal ones. A total would be a number the user cannot act on, and in a
+     * private window it is the single most misleading moment to be imprecise
+     * about how many normal tabs are open alongside it.
+     */
+    private fun updateBadge() {
+        val privateActive = activeTab()?.isPrivate == true
+        // The start page is not a tab. It is the blank sheet the browser opens on
+        // so there is somewhere to land, and counting it made a fresh install
+        // show "1 open tab" when the user had not opened anything. Home tabs
+        // are still in `tabs` -- they hold a live session -- they are simply
+        // not part of the count.
+        val count = tabs.count { it.isPrivate == privateActive && !it.isHome }
+        tabsCount.text = count.toString()
+        // The bare digit tells a screen reader nothing about what tapping it
+        // does, so it is restated as the count of the kind of tab in front.
+        tabsCount.contentDescription = if (privateActive) {
+            resources.getQuantityString(R.plurals.private_tabs_open, count, count)
+        } else {
+            resources.getQuantityString(R.plurals.tabs_open, count, count)
+        }
+    }
+
+    private fun updateTrackers() {
+        val tab = activeTab()
+        val threats = tab?.threats ?: 0
+        val text = when {
+            threats > 0 -> resources.getQuantityString(R.plurals.threats_blocked, threats, threats)
+            else -> {
+                val n = tab?.trackers ?: 0
+                resources.getQuantityString(R.plurals.trackers_blocked, n, n)
+            }
+        }
+        // The start page no longer carries a tracker pill; the figure lives on the
+        // tab tray, which is where a tab in front is actually identified. The
+        // field this used to write to was never given a View, so it was always
+        // null and the tracker count reached the user only through the tray.
+        trayTrackersText = text
+    }
+
+    // ---- navigation ----
+
+    private fun navigate(input: String) {
+        val tab = activeTab() ?: return
+        val text = input.trim()
+        if (text.isEmpty()) return
+        if (text.startsWith("mailto:") || text.startsWith("tel:") || text.startsWith("geo:") ||
+            text.startsWith("market:") || text.startsWith("intent:")
+        ) {
+            openExternalUri(text)
+            return
+        }
+        if (text.startsWith("data:")) {
+            tab.session.loadUri(text)
+            tab.isHome = false
+            tab.isError = false
+            homeOverlay.visibility = View.GONE
+            geckoView.visibility = View.VISIBLE
+            hideSuggestions()
+            addressText.clearFocus()
+            return
+        }
+        val url = when {
+            text.startsWith("http://") || text.startsWith("https://") -> text
+            // A blank page is a shell state, not a navigation: routing it through
+            // the engine would produce an about:blank location commit that the
+            // delegate then has to treat as meaningless. goHome covers this by
+            // showing the overlay with no engine round-trip.
+            isBlank(text) -> {
+                showHomeState(tab)
+                hideSuggestions()
+                addressText.clearFocus()
+                return
+            }
+            text.startsWith("about:") -> text
+            // An extension's options page. The engine's own address: it has a
+            // dot in it, so without this branch it would fall to the host
+            // check below and be rewritten to "https://moz-extension://…".
+            text.startsWith("moz-extension:") -> text
+            text.startsWith("//") -> "https:$text"
+            text == "localhost" || text.startsWith("localhost:") ||
+                text.matches(Regex("\\d{1,3}(\\.\\d{1,3}){3}(:\\d+)?(/.*)?")) ||
+                (text.contains(".") && !text.contains(" ")) -> "https://$text"
+            else -> {
+                navigateSearch(text)
+                return
+            }
+        }
+        tab.isHome = false
+        tab.isError = false
+        homeOverlay.visibility = View.GONE
+        geckoView.visibility = View.VISIBLE
+        hideSuggestions()
+        tab.session.loadUri(url)
+    }
+
+    private fun navigateSearch(query: String): Boolean {
+        val tab = activeTab() ?: return false
+        val engine = store.engineFor(tab.isPrivate)
+        tab.isHome = false
+        tab.isError = false
+        homeOverlay.visibility = View.GONE
+        geckoView.visibility = View.VISIBLE
+        hideSuggestions()
+        addressText.clearFocus()
+        tab.session.loadUri(engine.queryUrl.format(URLEncoder.encode(query, "UTF-8")))
+        return true
+    }
+
+    private fun showHomeState(tab: Tab) {
+        tab.isHome = true
+        tab.isError = false
+        tab.url = ""
+        tab.title = ""
+        if (tab.id != activeId) return
+        homeOverlay.visibility = View.VISIBLE
+        geckoView.visibility = View.GONE
+        progress.visibility = View.GONE
+        updateAddress()
+        updateTrackers()
+    }
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+    private fun isBlank(url: String): Boolean =
+        url.isEmpty() || url == "about:blank" || url == "about:home" || url == HOME_START
+
+    private fun goHome() {
+        val tab = activeTab() ?: return
+        showHomeState(tab)
+    }
+
+    private fun updateAddress() {
+        val tab = activeTab()
+        if (tab == null || tab.isHome) {
+            if (!addressText.hasFocus()) addressText.setText("")
+            addressText.hint = getString(R.string.url_hint)
+        } else {
+            if (!addressText.hasFocus()) addressText.setText(tab.title.ifEmpty { tab.url })
+            addressText.hint = tab.url
+        }
+        updateSecurityIndicator(tab)
+        // Kept here rather than only in selectTab(): a tab's URL is set by
+        // navigate() after selectTab() has already run, so the layout would
+        // stay disabled for the whole page. updateAddress() runs on every
+        // navigation and tab switch, which is the point at which the URL is
+        // actually known.
+        updatePullToRefresh(tab)
+    }
+
+    /**
+     * The connection state of the tab in front, from the engine's own report.
+     *
+     * `onSecurityChange` sets `isSecure` and this is the only thing that reads
+     * it, which is why the indicator cannot be wrong: there is no URL sniffing
+     * and no https:// check on the text. The state a tab starts with is "not yet
+     * reported", so the indicator is hidden until the engine has actually said
+     * something. Showing a padlock on the start page would claim a connection
+     * that does not exist.
+     */
+    private fun updateSecurityIndicator(tab: Tab?) {
+        if (!::securityIndicator.isInitialized) return
+        // Secure-window flag, scoped to private browsing rather than applied
+        // always. A private tab's content is what should not end up in the
+        // recents thumbnail or a screenshot, and doing it for every tab would
+        // disable screenshots and screen sharing for ordinary browsing, which is
+        // not the product's decision to make. Toggled per tab in selectTab, so
+        // leaving a private tab restores the ability to capture the screen.
+        applyPrivateWindowProtection(tab?.isPrivate == true)
+        if (tab == null || tab.isHome || isBlank(tab.url)) {
+            securityIndicator.visibility = View.GONE
+            return
+        }
+        securityIndicator.setImageResource(
+            if (tab.isSecure) R.drawable.ic_https else R.drawable.ic_http,
+        )
+        // The padlock itself is decorative for a screen reader; the state is
+        // announced through the field, where the user is already looking.
+        securityIndicator.imageTintList = android.content.res.ColorStateList.valueOf(
+            resources.getColor(
+                if (tab.isSecure) R.color.zyphra_accent else R.color.zyphra_grey,
+                theme,
+            ),
+        )
+        securityIndicator.contentDescription = getString(
+            if (tab.isSecure) R.string.connection_secure else R.string.connection_insecure,
+        )
+        securityIndicator.visibility = View.VISIBLE
+    }
+
+    private fun openUrlInNewTab(url: String, select: Boolean) {
+        if (url.isBlank()) return
+        val current = activeTab()
+        val tab = newTab(isPrivate = current?.isPrivate == true, select = select)
+        tab.isHome = false
+        if (select) {
+            homeOverlay.visibility = View.GONE
+            geckoView.visibility = View.VISIBLE
+        }
+        tab.session.loadUri(url)
+    }
+
+    /**
+     * Widens the touch area of the two bottom-bar controls without redrawing them.
+     *
+     * The tab-count badge is 38x32dp and the menu button 44dp, both under the 48dp
+     * Android asks for, so both were harder to hit than they looked. A
+     * [TouchDelegate] hands taps in the surrounding empty space to a control while
+     * the control keeps the size and appearance the design gave it.
+     *
+     * All the controls are registered with ONE delegate on the parent, because
+     * `View.setTouchDelegate` holds a single delegate: calling it per control
+     * silently replaces the previous one, which left the tab badge with no
+     * enlarged area at all while appearing to work.
+     */
+    private fun enlargeTouchTargets(vararg views: View) {
+        val parent = views.firstOrNull()?.parent as? View ?: return
+        val size = resources.getDimensionPixelSize(R.dimen.touch_target)
+        parent.post {
+            val targets = views.mapNotNull { view ->
+                if (view.parent !== parent) return@mapNotNull null
+                val rect = Rect()
+                view.getHitRect(rect)
+                val cx = rect.exactCenterX().toInt()
+                val cy = rect.exactCenterY().toInt()
+                val half = size / 2
+                rect.set(cx - half, cy - half, cx + half, cy + half)
+                rect to view
+            }
+            if (targets.isEmpty()) return@post
+            parent.touchDelegate = ExpandedTouchDelegate(targets)
+        }
+    }
+
+    /**
+     * Routes a touch to whichever of several controls owns the expanded rect.
+     *
+     * [TouchDelegate] is built for one target, and the platform exposes only one
+     * per view, so the hit test and the dispatch are done here instead. The event
+     * is copied with coordinates moved into the target's own space, because that
+     * is what the target's click handling expects.
+     */
+    private class ExpandedTouchDelegate(
+        targets: List<Pair<Rect, View>>,
+    ) : TouchDelegate(targets.first().first, targets.first().second) {
+
+        private val targets = targets
+
+        override fun onTouchEvent(event: MotionEvent): Boolean {
+            for ((rect, view) in targets) {
+                if (!rect.contains(event.x.toInt(), event.y.toInt())) continue
+                if (!view.isEnabled || !view.isShown) return false
+                val moved = MotionEvent.obtain(event)
+                moved.setLocation(event.x - view.left, event.y - view.top)
+                val handled = view.dispatchTouchEvent(moved)
+                moved.recycle()
+                return handled
+            }
+            return false
+        }
+    }
+
+    private fun copyText(text: String, label: String) {
+        val clipboard = getSystemService(android.content.ClipboardManager::class.java)
+        clipboard.setPrimaryClip(android.content.ClipData.newPlainText(label, text))
+        Toast.makeText(this, getString(R.string.copied_to_clipboard), Toast.LENGTH_SHORT).show()
+        // A Toast is a sighted user's confirmation and nothing more: it is not
+        // reliably announced by TalkBack, and it disappears before a screen-reader
+        // user has finished reading it. Copying is one of the few actions with no
+        // visible result of its own, so it says so out loud too.
+        findViewById<View>(android.R.id.content)
+            ?.announceForAccessibility(getString(R.string.copied_to_clipboard))
+    }
+
+    private fun showContextMenu(
+        session: GeckoSession,
+        element: GeckoSession.ContentDelegate.ContextElement,
+    ) {
+        val actions = mutableListOf<Pair<String, () -> Unit>>()
+        val link = element.linkUri?.takeIf { it.isNotBlank() }
+        val source = element.srcUri?.takeIf { it.isNotBlank() }
+        if (link != null) {
+            actions += getString(R.string.open_in_new_tab) to { openUrlInNewTab(link, true) }
+            actions += getString(R.string.open_in_background_tab) to { openUrlInNewTab(link, false) }
+            actions += getString(R.string.copy_link) to { copyText(link, getString(R.string.copy_link)) }
+            actions += getString(R.string.share) to { shareUri(link) }
+        }
+        if (element.type == GeckoSession.ContentDelegate.ContextElement.TYPE_IMAGE && source != null) {
+            actions += getString(R.string.open_image) to { openUrlInNewTab(source, true) }
+            actions += getString(R.string.download_image) to { enqueueDownload(source) }
+            actions += getString(R.string.copy_image_address) to { copyText(source, getString(R.string.copy_image_address)) }
+        }
+        if (actions.isEmpty()) return
+        AlertDialog.Builder(this)
+            .setTitle(element.title?.takeIf { it.isNotBlank() } ?: getString(R.string.page_actions))
+            .setItems(actions.map { it.first }.toTypedArray()) { _, which -> actions[which].second() }
+            .show()
+    }
+
+    private fun shareUri(uri: String) {
+        startActivity(
+            Intent.createChooser(
+                Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, uri)
+                },
+                getString(R.string.share),
+            ),
+        )
+    }
+
+    private fun showContentProcessFailure(session: GeckoSession, message: Int) {
+        val tab = tabFor(session) ?: return
+        // Mark it even when only a Toast is shown (background tab): without the
+        // flag the tab keeps a dead session with no recovery path, and
+        // selecting it later would show a blank page. selectTab retries
+        // error-flagged tabs, which is what recovers them.
+        tab.isError = true
+        if (tab.id != activeId || isFinishing || isDestroyed) {
+            Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.page_problem)
+            .setMessage(message)
+            .setNegativeButton(R.string.close) { _, _ -> closeTab(tab.id) }
+            .setPositiveButton(R.string.reload) { _, _ -> tab.session.reload() }
+            .show()
+    }
+
+    internal fun setBrowserFullscreen(session: GeckoSession, enabled: Boolean) {
+        fullscreenSession = if (enabled) session else null
+        if (!enabled) chromeRevealed = false
+        applyChromeVisibility()
+    }
+
+    private fun setSystemBarsVisible() {
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        val controller = WindowCompat.getInsetsController(window, window.decorView)
+        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
+        controller.show(WindowInsetsCompat.Type.systemBars())
+        SystemBars.refresh(this)
+    }
+
+    private fun pictureInPictureParams(): PictureInPictureParams {
+        val aspect = mediaController.aspectRatio().takeIf { it.isFinite() && it > 0.2 } ?: 16.0 / 9.0
+        // The platform only accepts an integer Rational, and only between
+        // 1/2.39 and 2.39.
+        val clamped = aspect.coerceIn(0.42, 2.39)
+        val denominator = (1000 / clamped).toInt().coerceIn(1, 4000)
+        return PictureInPictureParams.Builder()
+            .setAspectRatio(Rational(1000, denominator))
+            .apply {
+                if (geckoView.width > 0 && geckoView.height > 0) {
+                    setSourceRectHint(android.graphics.Rect(0, 0, geckoView.width, geckoView.height))
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    setAutoEnterEnabled(true)
+                    setSeamlessResizeEnabled(true)
+                }
+            }
+            .build()
+    }
+
+    private fun enterPictureInPicture() {
+        if (!store.pictureInPicture) return
+        if (fullscreenSession == null || isInPictureInPictureMode) return
+        runCatching { enterPictureInPictureMode(pictureInPictureParams()) }
+            .onFailure { Toast.makeText(this, R.string.pip_unavailable, Toast.LENGTH_SHORT).show() }
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (fullscreenSession != null) enterPictureInPicture()
+    }
+
+    override fun onPictureInPictureModeChanged(
+        isInPictureInPictureMode: Boolean,
+        newConfig: android.content.res.Configuration,
+    ) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        if (isInPictureInPictureMode) {
+            browserControls.visibility = View.GONE
+            runCatching { setPictureInPictureParams(pictureInPictureParams()) }
+        } else {
+            applyChromeVisibility()
+        }
+    }
+
+    /**
+     * The Activity handles rotation itself, so the window has to be re-inset and
+     * the PiP aspect ratio recomputed whenever the configuration changes.
+     */
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        SystemBars.refresh(this)
+        if (isInPictureInPictureMode) {
+            runCatching { setPictureInPictureParams(pictureInPictureParams()) }
+        }
+    }
+
+    /** Tracks which engine the badge currently shows, so an async icon load
+     *  that completes after the engine changed does not paint the wrong icon. */
+    private var currentBadgeEngine: String? = null
+
+    /** Engine badge in the toolbar pill reflects the active (normal/private) engine. */
+    private fun updateEngineBadge() {
+        val badge = findViewById<TextView>(R.id.engine_badge) ?: return
+        val engine = store.engineFor(activeTab()?.isPrivate == true)
+        findViewById<View>(R.id.engine_picker)?.contentDescription =
+            getString(R.string.a11y_engine_picker, engine.name)
+
+        // Only reset if the engine actually changed; otherwise a resumed activity
+        // would re-trigger a network fetch for an icon we already have.
+        if (currentBadgeEngine == engine.name) return
+        currentBadgeEngine = engine.name
+
+        // Built-in engines ship their icon as a drawable resource, so it is
+        // available instantly and works offline. Custom engines (iconRes == 0)
+        // fall through to the download path below.
+        val bundled = engine.iconRes
+        if (bundled != 0) {
+            badge.text = ""
+            badge.background = getDrawable(bundled)
+            badge.background?.setTintList(null)
+            return
+        }
+
+        // Show the letter immediately so the badge is never blank while the
+        // favicon downloads. Replace it with the icon once it arrives.
+        badge.text = badgeLetter(engine.name, engine.name)
+        badge.background = getDrawable(R.drawable.bg_engine_badge)
+        badge.background?.setTint(badgeColorFor(engine.name))
+
+        val cached = EngineIconCache.get(this, engine)
+        if (cached != null) {
+            showEngineIcon(badge, cached)
+        } else {
+            EngineIconCache.loadAsync(this, engine) { bitmap ->
+                if (bitmap != null && currentBadgeEngine == engine.name) {
+                    runOnUiThread {
+                        showEngineIcon(badge, bitmap)
+                    }
+                }
+            }
+        }
+    }
+
+    /** Replaces the letter badge with a downloaded favicon. */
+    private fun showEngineIcon(badge: TextView, bitmap: android.graphics.Bitmap) {
+        val sizePx = (28 * resources.displayMetrics.density).toInt()
+        val circular = EngineIconCache.circularBitmap(bitmap, sizePx)
+        badge.text = ""
+        badge.background = android.graphics.drawable.BitmapDrawable(resources, circular)
+        badge.background?.setTintList(null)
+    }
+
+    private fun showEnginePicker() {
+        val sheet = EnginePickerSheet().apply {
+            onPick = { engine ->
+                store.customEngine = null
+                if (ZyphraDefaults.SEARCH_ENGINES.any { it.name == engine.name }) {
+                    store.searchEngineName = engine.name
+                } else {
+                    store.customEngine = engine.name
+                }
+                updateEngineBadge()
+            }
+            onAddCustom = {
+                startActivity(Intent(this@MainActivity, DefaultSearchActivity::class.java))
+            }
+        }
+        sheet.show(supportFragmentManager, "engines")
+    }
+
+    // ---- external apps / downloads ----
+
+    /**
+     * Hands a link off to whatever app claims it.
+     *
+     * The `intent:` form is the dangerous one. `Intent.parseUri` will happily
+     * build an arbitrary Intent out of a string a webpage controls, including an
+     * explicit `component=`, a `package=`, a `Selector`, and `S.*` extras that
+     * carry `FLAG_GRANT_READ_URI_PERMISSION`. Launching that verbatim lets a page
+     * start an activity inside another app directly, or hand a file it can read
+     * to an app that has no permission for it. So the parsed intent is treated as
+     * untrusted and stripped down to what a plain link actually needs: an action
+     * and a data URI.
+     *
+     * Nothing here weakens browsing. A site that sends a real `intent:` with a
+     * normal VIEW action and an http(s) target still opens.
+     */
+    private fun openExternalUri(uri: String) {
+        if (!store.openLinksInApps) return
+        // An empty or unparsable URI would launch a content-less VIEW intent and
+        // fail with an opaque system error.
+        if (uri.isBlank() || Uri.parse(uri).scheme.isNullOrBlank()) return
+        val intent = try {
+            if (uri.startsWith("intent:", ignoreCase = true)) {
+                hardenWebIntent(Intent.parseUri(uri, Intent.URI_INTENT_SCHEME))
+            } else {
+                Intent(Intent.ACTION_VIEW, Uri.parse(uri))
+            }
+        } catch (_: Exception) {
+            // A malformed intent: string is not something to hand to the system.
+            Toast.makeText(this, getString(R.string.not_available), Toast.LENGTH_SHORT).show()
+            return
+        } ?: return
+        // The same check applies to a plain link: the scheme is whatever the page
+        // asked for, and an unknown one simply has no handler.
+        val target = intent.data
+        if (target == null || target.scheme.isNullOrBlank()) return
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        try {
+            startActivity(intent)
+        } catch (_: Exception) {
+            Toast.makeText(this, getString(R.string.not_available), Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * Strips everything from a web-supplied intent that is not part of saying
+     * "open this link".
+     *
+     * Removed: an explicit component or package, a Selector (which can name a
+     * private, unexported activity inside another app), every
+     * `FLAG_GRANT_*` bit (a page must not mint a permission grant for itself),
+     * and any extra whose key is one Gecko never needed. What survives is the
+     * action and the data URI, which is what the intent: scheme is for.
+     */
+    private fun hardenWebIntent(parsed: Intent): Intent? {
+        // A component or selector means the page is aiming at a specific activity
+        // rather than offering a link. Refused outright.
+        if (parsed.component != null || parsed.selector != null) return null
+        val target = parsed.data
+        if (target == null || target.scheme.isNullOrBlank()) return null
+        // content:// would need a URI grant we are not going to mint on a page's
+        // behalf, and file:// is not something a link can legitimately carry to
+        // another app. Both are refused; an ordinary http/https/mailto/tel/market
+        // link is untouched.
+        if (target.scheme?.lowercase() in REFUSED_WEB_INTENT_SCHEMES) return null
+
+        val clean = Intent(parsed.action ?: Intent.ACTION_VIEW, target)
+        // Grant flags would hand the receiving app access the browser never
+        // agreed to. Clearing them is the point of the allow-list: anything not
+        // named in ALLOWED_WEB_INTENT_FLAGS is dropped, including flags a future
+        // Android adds.
+        clean.flags = parsed.flags and ALLOWED_WEB_INTENT_FLAGS
+        return clean
+    }
+
+    /** Schemes a web page has no business handing to another app. */
+    private val REFUSED_WEB_INTENT_SCHEMES = setOf("content", "file", "android_app")
+
+    /**
+     * Turns the secure-window flag on or off with private browsing.
+     *
+     * FLAG_SECURE is what keeps a private page out of the task switcher
+     * thumbnail, out of screenshots and out of screen sharing. It is scoped to
+     * the private case on purpose: applied unconditionally it would remove
+     * screenshots and casting from normal browsing, which is a product decision
+     * this browser has not made.
+     */
+    private fun applyPrivateWindowProtection(private: Boolean) {
+        if (private == secureWindowApplied) return
+        secureWindowApplied = private
+        if (private) {
+            window.setFlags(
+                android.view.WindowManager.LayoutParams.FLAG_SECURE,
+                android.view.WindowManager.LayoutParams.FLAG_SECURE,
+            )
+        } else {
+            window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+        }
+    }
+
+    /** Whether FLAG_SECURE is currently on. Guards against redundant flag churn. */
+    private var secureWindowApplied = false
+
+    /**
+     * Flags a web-supplied intent may keep. Deliberately a short allow-list:
+     * only the task-affinity bits that make a link open sensibly, and never a
+     * grant or a component-selection flag.
+     */
+    private val ALLOWED_WEB_INTENT_FLAGS =
+        Intent.FLAG_ACTIVITY_NEW_TASK or
+            Intent.FLAG_ACTIVITY_CLEAR_TOP or
+            Intent.FLAG_ACTIVITY_SINGLE_TOP
+
+    private fun enqueueDownload(
+        url: String,
+        headers: Map<String, String> = emptyMap(),
+        userAgent: String? = null,
+        mimeType: String? = null,
+        body: java.io.InputStream? = null,
+        contentLength: Long = -1L,
+    ) {
+        // This runs inside a Gecko delegate callback, so nothing may escape: an
+        // exception here would take the callback, and with it the page load,
+        // down with it.
+        runCatching {
+            if (url.isBlank()) return@runCatching
+            val contentDisposition = headers.entries.firstOrNull {
+                it.key.equals("Content-Disposition", true)
+            }?.value
+            val guessedName = DownloadSafety.fileNameFrom(contentDisposition, url, mimeType)
+            val verdict = if (store.warnRiskyDownloads) {
+                DownloadSafety.inspect(url, guessedName, mimeType, store.httpsMode != 0)
+            } else {
+                null
+            }
+            if (verdict != null) {
+                confirmRiskyDownload(guessedName, verdict) {
+                    startDownload(url, headers, userAgent, mimeType, guessedName, body, contentLength)
+                }
+            } else {
+                startDownload(url, headers, userAgent, mimeType, guessedName, body, contentLength)
+            }
+        }.onFailure {
+            Toast.makeText(this, getString(R.string.not_available), Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * Executables and unencrypted transfers are confirmed explicitly. Dismissing
+     * the dialog cancels the download, so a stray link cannot install anything.
+     */
+    private fun confirmRiskyDownload(name: String, verdict: DownloadSafety.Verdict, onAccept: () -> Unit) {
+        val reason = when (verdict.risk) {
+            DownloadSafety.Risk.EXECUTABLE -> getString(R.string.download_risk_executable, verdict.detail)
+            DownloadSafety.Risk.INSECURE -> getString(R.string.download_risk_insecure, verdict.detail)
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.download_risk_title)
+            .setMessage(getString(R.string.download_risk_message, name, reason))
+            .setNegativeButton(R.string.cancel, null)
+            .setPositiveButton(R.string.download_risk_continue) { _, _ -> onAccept() }
+            .show()
+    }
+
+    private fun startDownload(
+        url: String,
+        headers: Map<String, String>,
+        userAgent: String?,
+        mimeType: String?,
+        guessedName: String,
+        body: java.io.InputStream?,
+        contentLength: Long,
+    ) {
+        try {
+            val folder = store.downloadFolder.trim('/')
+            val name = uniqueDownloadName(guessedName, folder)
+            val taskHeaders = mutableMapOf<String, String>()
+            headers.forEach { (key, value) ->
+                if (key.isNotBlank() && value.isNotBlank() &&
+                    !key.equals("Content-Length", true) &&
+                    !key.equals("Host", true) &&
+                    !key.equals("Connection", true)
+                ) {
+                    taskHeaders[key] = value
+                }
+            }
+            // GeckoView owns the cookie jar and exposes no way to read it, so an
+            // engine-issued request could never be authenticated. The cookie
+            // below only helps the rare case where a download starts without a
+            // Gecko response body; it is not the primary mechanism.
+            android.webkit.CookieManager.getInstance().getCookie(url)
+                ?.takeIf { it.isNotBlank() }
+                ?.let { taskHeaders["Cookie"] = it }
+            if (body != null) {
+                DownloadEngine.enqueueFromEngine(
+                    url = url,
+                    name = name,
+                    mime = mimeType.orEmpty(),
+                    folder = folder,
+                    folderUri = store.downloadFolderUri,
+                    headers = taskHeaders,
+                    body = body,
+                    totalBytes = contentLength,
+                )
+            } else {
+                DownloadEngine.enqueue(
+                    url = url,
+                    name = name,
+                    mime = mimeType.orEmpty(),
+                    folder = folder,
+                    folderUri = store.downloadFolderUri,
+                    headers = taskHeaders,
+                    userAgent = userAgent.orEmpty(),
+                )
+            }
+            Toast.makeText(this, getString(R.string.download_started), Toast.LENGTH_SHORT).show()
+        } catch (_: Exception) {
+            Toast.makeText(this, getString(R.string.not_available), Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun uniqueDownloadName(name: String, folder: String = ""): String {
+        val downloads = android.os.Environment.getExternalStoragePublicDirectory(
+            android.os.Environment.DIRECTORY_DOWNLOADS,
+        )
+        val directory = if (folder.isBlank()) downloads else java.io.File(downloads, folder)
+        val safeName = name.ifBlank { "download" }
+        if (!java.io.File(directory, safeName).exists()) return safeName
+        val base = safeName.substringBeforeLast('.', safeName)
+        val extension = safeName.substringAfterLast('.', "").let { if (it.isEmpty()) "" else ".$it" }
+        var index = 1
+        while (true) {
+            val candidate = "$base ($index)$extension"
+            if (!java.io.File(directory, candidate).exists()) return candidate
+            index++
+        }
+    }
+
+    // ---- UI: sheets / dialogs ----
+
+    private fun showMenuSheet() {
+        val sheet = MenuSheet().apply {
+            onHistory = { startActivity(Intent(this@MainActivity, HistoryActivity::class.java)) }
+            onBookmarks = { startActivity(Intent(this@MainActivity, BookmarksActivity::class.java)) }
+            onDownloads = { startActivity(Intent(this@MainActivity, DownloadsActivity::class.java)) }
+            onSettings = { startActivity(Intent(this@MainActivity, SettingsActivity::class.java)) }
+            // The compatibility page is about *this* site, so the active URL
+            // travels with the intent. Without it the page could only offer a
+            // generic explanation and the user would have to work out which site
+            // they were looking at.
+            onCompatibility = {
+                startActivity(
+                    Intent(this@MainActivity, SettingsActivity::class.java)
+                        .putExtra(SettingsActivity.EXTRA_SCREEN, SettingsScreens.COMPATIBILITY)
+                        .putExtra(SettingsActivity.EXTRA_SITE, activeTab()?.url.orEmpty()),
+                )
+            }
+            onQuit = { askQuit() }
+            onPrivacyReport = { showPrivacyReport() }
+            canInstallPwa = webAppManifest != null && webAppUrl != null
+            onInstallPwa = { installWebApp() }
+            isHomepage = activeTab()?.isHome ?: true
+            pageActions = pageActions()
+        }
+        menuSheet = sheet
+        sheet.show(supportFragmentManager, "menu")
+    }
+
+    private fun installWebApp() {
+        val manifest = webAppManifest ?: return
+        val pageUrl = webAppUrl ?: return
+        val rawStart = manifest.optString("start_url").ifBlank { "/" }
+        val startUrl = runCatching { java.net.URI(pageUrl).resolve(rawStart).toString() }.getOrDefault(pageUrl)
+        if (!startUrl.startsWith("https://") && !startUrl.startsWith("http://")) return
+        val name = manifest.optString("short_name").ifBlank {
+            manifest.optString("name").ifBlank { Uri.parse(pageUrl).host.orEmpty() }
+        }
+        if (name.isBlank()) return
+        val launchIntent = Intent(Intent.ACTION_VIEW, Uri.parse(startUrl)).apply {
+            setPackage(packageName)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            // Marks this as a launch of the installed web app, which is what
+            // lets the shell drop the browser chrome for it.
+            putExtra(EXTRA_WEB_APP, startUrl)
+        }
+        try {
+            val manager = getSystemService(android.content.pm.ShortcutManager::class.java)
+            val icon = webAppIconUrl
+                ?.let { FaviconCache.cachedImage(it) }
+                ?.let { android.graphics.drawable.Icon.createWithBitmap(it) }
+                ?: android.graphics.drawable.Icon.createWithResource(this, R.mipmap.ic_launcher)
+            val shortcut = android.content.pm.ShortcutInfo.Builder(this, "webapp:${Uri.parse(pageUrl).host}")
+                .setShortLabel(name.take(30))
+                .setLongLabel(name)
+                .setIcon(icon)
+                .setIntent(launchIntent)
+                .build()
+            val accepted = manager.requestPinShortcut(shortcut, null)
+            Toast.makeText(
+                this,
+                if (accepted) R.string.app_shortcut_requested else R.string.app_shortcut_failed,
+                Toast.LENGTH_SHORT,
+            ).show()
+        } catch (_: Exception) {
+            Toast.makeText(this, R.string.app_shortcut_failed, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /** Largest usable icon from a web app manifest, resolved against the page URL. */
+    private fun webAppIcon(manifest: org.json.JSONObject, pageUrl: String): String? {
+        val icons = manifest.optJSONArray("icons") ?: return null
+        var best: Pair<Int, String>? = null
+        for (i in 0 until icons.length()) {
+            val entry = icons.optJSONObject(i) ?: continue
+            val src = entry.optString("src").takeIf { it.isNotBlank() } ?: continue
+            val type = entry.optString("type")
+            if (type.isNotBlank() && !type.startsWith("image/")) continue
+            val sizes = entry.optString("sizes")
+            val side = sizes.split('x', ' ')
+                .mapNotNull { it.trim().removeSuffix("px").toIntOrNull() }
+                .maxOrNull() ?: 0
+            val purpose = entry.optString("purpose")
+            // A maskable icon is designed to be cropped, so prefer "any".
+            val score = side * if (purpose.contains("maskable")) 1 else 2
+            if (best == null || score > best!!.first) {
+                val resolved = runCatching { java.net.URI(pageUrl).resolve(src).toString() }.getOrNull()
+                if (resolved != null && (resolved.startsWith("https://") || resolved.startsWith("http://"))) {
+                    best = score to resolved
+                }
+            }
+        }
+        return best?.second
+    }
+
+    /**
+     * Web app display mode.
+     *
+     * The chrome is only hidden for the app the user actually installed, that is
+     * when the browser was launched from its pinned shortcut. Hiding it merely
+     * because a page ships a manifest is a trap: a site that declares
+     * `scope: "/"` would strip the toolbar from every page on its origin and the
+     * user would be left with no address bar, no tab tray and no way back.
+     */
+    private fun applyWebAppDisplayMode() {
+        if (!::browserControls.isInitialized) return
+        val tab = activeTab() ?: return
+        // Only a manifest the tab in front itself shipped may change how that tab
+        // is displayed. Carrying one across a tab switch would apply the previous
+        // tab's mode to whatever came next, and a background tab's manifest
+        // would strip the chrome off a page being read normally.
+        val owns = webAppManifest != null && webAppManifestTabId == tab.id
+        val display = if (owns) webAppManifest?.optString("display").orEmpty().lowercase() else ""
+        val launched = webAppOrigin
+        val onAppOrigin = launched != null && tab.url.isNotBlank() &&
+            runCatching { Uri.parse(tab.url).host == Uri.parse(launched).host }.getOrDefault(false)
+        val immersive = onAppOrigin && (display == "fullscreen" || display == "standalone")
+        val wasImmersive = immersiveMode
+        immersiveMode = immersive
+        if (immersive) {
+            chromeRevealed = false
+            if (fullscreenSession == null) applyChromeVisibility()
+        } else if (wasImmersive) {
+            chromeRevealed = false
+            applyChromeVisibility()
+        }
+    }
+
+    private fun applyChromeVisibility() {
+        val fullscreen = fullscreenSession != null
+        val hidden = fullscreen || (immersiveMode && !chromeRevealed)
+        browserControls.visibility = if (hidden) View.GONE else View.VISIBLE
+        findViewById<View>(R.id.btn_pip).visibility = if (fullscreen) View.VISIBLE else View.GONE
+        val controller = WindowCompat.getInsetsController(window, window.decorView)
+        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        if (hidden) {
+            controller.hide(WindowInsetsCompat.Type.systemBars())
+        } else {
+            setSystemBarsVisible()
+        }
+    }
+
+    /**
+     * In a web app's own display mode the chrome is hidden, so it has to be
+     * reachable again: a tap near the top edge brings it back, and a second tap
+     * puts it away, the way an installed app behaves. Gecko still receives the
+     * touch either way.
+     */
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (::browserControls.isInitialized && immersiveMode && fullscreenSession == null) {
+            when (ev.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    tapDownAt = ev.eventTime
+                    tapDownX = ev.rawX
+                    tapDownY = ev.rawY
+                }
+                MotionEvent.ACTION_UP -> {
+                    val isTap = ev.eventTime - tapDownAt < 400 &&
+                        kotlin.math.abs(ev.rawX - tapDownX) < dp(24) &&
+                        kotlin.math.abs(ev.rawY - tapDownY) < dp(24)
+                    val topEdge = ev.rawY <= window.decorView.height * 0.15f
+                    // A tap brings the chrome back; once it is back, only a tap
+                    // near the top edge puts it away again, so ordinary taps on
+                    // the page still reach the page.
+                    if (isTap && (!chromeRevealed || topEdge)) {
+                        chromeRevealed = !chromeRevealed
+                        applyChromeVisibility()
+                    }
+                }
+            }
+        }
+        return super.dispatchTouchEvent(ev)
+    }
+
+    private fun showTabsSheet() {
+        val inactive = inactiveIds()
+        val all = snapshot()
+        val sheet = TabsSheet().apply {
+            tabs = all
+            inactiveTabs = all.filter { it.id in inactive }
+            trackersText = this@MainActivity.trayTrackersText
+            columns = store.tabViewColumns
+            showGroups = store.tabGroups
+            // The button now counts one kind of tab, so it opens that kind. A
+            // button reading "2" for private tabs that lands on the normal tray
+            // would be showing the user a page the number does not describe.
+            mode = if (activeTab()?.isPrivate == true) {
+                TabsSheet.MODE_PRIVATE
+            } else {
+                TabsSheet.MODE_TABS
+            }
+            onSelect = { selectTab(it) }
+            onClose = { closeTab(it) }
+            onNewTab = { newTab(isPrivate = it, select = true) }
+            onTabMenu = { showTabMenu(it) }
+        }
+        tabsSheet = sheet
+        sheet.show(supportFragmentManager, "tabs")
+    }
+
+    private fun showTabMenu(item: TabItem) {
+        val source = tabs.firstOrNull { it.id == item.id } ?: return
+        val index = tabs.indexOfFirst { it.id == item.id }
+        val actions = mutableListOf<Pair<String, () -> Unit>>()
+        if (!source.isHome && source.url.isNotBlank()) {
+            actions += getString(R.string.duplicate_tab) to {
+                val duplicate = newTab(source.isPrivate, select = true).also { copied ->
+                    copied.isHome = false
+                    copied.url = source.url
+                    copied.title = source.title
+                    copied.session.loadUri(source.url)
+                }
+                updateBadge()
+            }
+            actions += getString(R.string.share) to { shareUri(source.url) }
+        }
+        actions += getString(R.string.close_other_tabs) to {
+            val victims = tabs.filter { it.id != item.id && it.isPrivate == source.isPrivate }.map { it.id }
+            closeTabIds(victims)
+        }
+        actions += getString(R.string.close_tabs_right) to {
+            val victims = tabs.drop(index + 1).filter { it.isPrivate == source.isPrivate }.map { it.id }
+            closeTabIds(victims)
+        }
+        actions += getString(R.string.close) to { closeTab(item.id) }
+        AlertDialog.Builder(this)
+            .setTitle(item.title.ifBlank { item.url.ifBlank { getString(R.string.new_tab) } })
+            .setItems(actions.map { it.first }.toTypedArray()) { _, which -> actions[which].second() }
+            .show()
+    }
+
+    /**
+     * Drops every tab carrying [ids].
+     *
+     * Used by the "Close multiple" path in the tray, where the selection can
+     * include the tab in front. One closeTab call per id means the active one
+     * goes through the normal neighbour-selection path rather than leaving
+     * activeId pointing at a tab that no longer exists.
+     */
+    private fun closeTabsByIds(ids: List<Long>) {
+        if (ids.isEmpty()) return
+        // The active tab last, so the tab the user was reading survives until
+        // the background ones are gone and the selection has somewhere to land.
+        val ordered = ids.sortedBy { if (it == activeId) 1 else 0 }
+        for (id in ordered) closeTab(id)
+    }
+
+    private fun closeTabIds(ids: List<Long>) {
+        if (ids.isEmpty()) return
+        // Closing several at once is easy to do by accident and impossible to
+        // undo, so it asks first. One tab needs no confirmation.
+        if (store.confirmCloseTabs && ids.size > 1) {
+            AlertDialog.Builder(this)
+                .setTitle(getString(R.string.close_tabs_confirm, ids.size))
+                .setNegativeButton(R.string.cancel, null)
+                .setPositiveButton(R.string.close) { _, _ -> reallyCloseTabIds(ids) }
+                .show()
+            return
+        }
+        reallyCloseTabIds(ids)
+    }
+
+    private fun reallyCloseTabIds(ids: List<Long>) {
+        // Each tab goes through closeTab, which already handles "this was the tab
+        // in front" by selecting a neighbour. This used to select survivors.first()
+        // up front and then close them one by one, so the user was thrown to the
+        // oldest survivor rather than to the tab next to the one they closed.
+        closeTabsByIds(ids)
+        saveTabState()
+    }
+
+    /** Page actions (long-press the address bar). */
+    /**
+     * The actions that apply to the page in front, rendered as a horizontal row
+     * at the top of the menu sheet.
+     *
+     * This was a dialog behind a long press on the address bar, which meant the
+     * only route to reload, find-in-page or request-desktop was a gesture that
+     * also swallowed the platform's own text menu. In the sheet it is reachable
+     * without colliding with editing, and it sits above the navigation rows
+     * because it acts on the page rather than moving around the app.
+     *
+     * Add bookmark and Save login are deliberately absent: both are one tap away
+     * from the menu's own Bookmarks and Passwords rows, and repeating them here
+     * only gave two ways to reach the same screen.
+     */
+    private fun pageActions(): List<MenuSheet.PageAction> {
+        val tab = activeTab() ?: return emptyList()
+        // Four fixed tiles, plus Forward only when the engine says there is
+        // somewhere to go. The grid takes the tile count as its column count,
+        // so both shapes are exactly one full row -- never a ragged half-row.
+        // Forward uses the engine's own forward stack (canGoForward from
+        // onCanGoForward); there is no second history kept beside it.
+        val reload = MenuSheet.PageAction(
+            getString(if (tab.isLoading) R.string.stop else R.string.reload),
+            if (tab.isLoading) R.drawable.ic_stop else R.drawable.ic_reload,
+        ) {
+            if (tab.isLoading) tab.session.stop()
+            else if (tab.isError) tab.session.loadUri(tab.url)
+            else tab.session.reload()
+        }
+        val home = MenuSheet.PageAction(getString(R.string.homepage), R.drawable.ic_home) { goHome() }
+        val back = MenuSheet.PageAction(getString(R.string.back), R.drawable.ic_back) { tab.session.goBack() }
+        val share = MenuSheet.PageAction(getString(R.string.share), R.drawable.ic_share) { shareCurrent() }
+        return if (tab.canGoForward) {
+            listOf(
+                reload,
+                home,
+                back,
+                MenuSheet.PageAction(getString(R.string.forward), R.drawable.ic_forward) {
+                    tab.session.goForward()
+                },
+                share,
+            )
+        } else {
+            listOf(reload, home, back, share)
+        }
+    }
+
+    private fun showFindInPage(tab: Tab) {
+        // Highlight every match, not just the current one, so the user can see
+        // how much of the page the query hits.
+        runCatching {
+            tab.session.finder.setDisplayFlags(GeckoSession.FINDER_DISPLAY_HIGHLIGHT_ALL)
+        }
+        val input = EditText(this).apply {
+            hint = getString(R.string.find_hint)
+            setSingleLine(true)
+            requestFocus()
+        }
+        val status = TextView(this).apply {
+            setPadding(0, 10, 0, 0)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            setTextColor(getColor(R.color.zyphra_grey))
+            setText(R.string.find_type_to_search)
+        }
+        val box = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            val pad = (20 * resources.displayMetrics.density).toInt()
+            setPadding(pad, pad / 2, pad, 0)
+            addView(input)
+            addView(status)
+        }
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.find_in_page)
+            .setView(box)
+            .setNegativeButton(android.R.string.cancel, null)
+            .setNeutralButton(R.string.find_previous, null)
+            .setPositiveButton(R.string.find_next, null)
+            .create()
+        dialog.show()
+
+        // The default button handlers dismiss the dialog, which made stepping
+        // through matches impossible. Replace them so the bar stays open and
+        // reports the running count instead.
+        fun search(direction: Int) {
+            val query = input.text.toString()
+            if (query.isBlank()) {
+                status.setText(R.string.find_type_to_search)
+                return
+            }
+            tab.session.finder.find(query, direction).accept { result ->
+                if (result == null || !result.found) {
+                    status.setText(R.string.find_no_matches)
+                } else {
+                    status.text = getString(R.string.find_matches, result.current, result.total)
+                }
+            }
+        }
+
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+            search(GeckoSession.FINDER_FIND_FORWARD)
+        }
+        dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+            search(GeckoSession.FINDER_FIND_BACKWARDS)
+        }
+        dialog.setOnDismissListener {
+            runCatching {
+                tab.session.finder.clear()
+                tab.session.finder.setDisplayFlags(0)
+            }
+        }
+
+        // Search as the user types, so the count appears without pressing Next.
+        input.addTextChangedListener(
+            object : android.text.TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
+                override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
+                override fun afterTextChanged(s: android.text.Editable?) {
+                    search(GeckoSession.FINDER_FIND_FORWARD)
+                }
+            },
+        )
+    }
+
+    private fun shareCurrent() {
+        val url = activeTab()?.url.orEmpty()
+        if (url.isEmpty()) return
+        startActivity(
+            Intent.createChooser(
+                Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, url),
+                getString(R.string.share),
+            ),
+        )
+    }
+
+    private fun showPrivacyReport() {
+        // Opens the same page Settings shows, rather than a five-line dialog
+        // built from a second, independent set of reads. That duplication is how
+        // the two drift apart and start disagreeing with each other; there is now
+        // one page and one read of the stores.
+        startActivity(
+            Intent(this@MainActivity, SettingsActivity::class.java)
+                .putExtra(SettingsActivity.EXTRA_SCREEN, SettingsScreens.PRIVACY_REPORT),
+        )
+    }
+
+    private fun askQuit() {
+        AlertDialog.Builder(this)
+            .setMessage(getString(R.string.quit_confirm))
+            .setPositiveButton(getString(R.string.quit)) { _, _ ->
+                // Quitting is the only destroy path that sanitizes. A Back-press
+                // exit, a recents dismiss or a configuration recreation all run
+                // through onDestroy too, and none of them is the user asking
+                // for their data to be wiped.
+                quitting = true
+                sanitize(keepPage = true)
+                finishAffinity()
+            }
+            .setNegativeButton(getString(R.string.cancel), null)
+            .show()
+    }
+
+    private fun sanitize(keepPage: Boolean) {
+        eraseEngineData()
+        if (!keepPage) goHome() else activeTab()?.session?.reload()
+    }
+
+    override fun onDestroy() {
+        saveTabState()
+        // A reminder that outlives the browser is worse than no reminder: it
+        // would claim private browsing is on when the app is gone.
+        if (::privateIndicator.isInitialized) privateIndicator.dismiss()
+        if (::mediaController.isInitialized) mediaController.release()
+        // The pending suggestion runnable posts to the main looper and reads
+        // this activity's views. Left queued it fires against a dead view tree
+        // after the next navigation has already started.
+        suggestionPending?.let { suggestionHandler.removeCallbacks(it) }
+        suggestionPending = null
+        // The runtime is process-wide and outlives this activity, but these three
+        // delegates each capture it. Left in place, a web notification tap, a
+        // service-worker window.open or an autofill query arriving in the gap
+        // between destruction and the next onCreate would run against a destroyed
+        // activity. Each is re-set in onCreate for the next instance.
+        runtime?.setWebNotificationDelegate(null)
+        runtime?.setAutocompleteStorageDelegate(null)
+        runtime?.setServiceWorkerDelegate(null)
+        // Sanitizing here is gated on an explicit Quit, not on destruction
+        // itself. Before the gate, leaving with Back (or a theme change, which
+        // also recreates) wiped tabs, history, cookies and site data on a
+        // fresh install, because the desktop-mirrored defaults sanitize
+        // history, cookies, site data and cache. Quitting stays the deliberate
+        // path; everything else keeps state for the next launch.
+        if (quitting && store.sanitizeOnShutdown) {
+            // Category by category, because "delete on quit" is a set of
+            // separate promises and the user is allowed to keep some of them.
+            if (store.sanitizeHistory) {
+                sessionStore.clear()
+                historyStore.clear()
+            }
+            if (store.sanitizeSiteData) sitePermissionStore.clear()
+            if (store.sanitizeBookmarks) bookmarkStore.clear()
+            for (tab in tabs) tab.session.close()
+            tabs.clear()
+            eraseEngineDataOnQuit(store)
+        } else {
+            for (tab in tabs) tab.session.close()
+            tabs.clear()
+        }
+        super.onDestroy()
+    }
+
+    private fun showAbout() {
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.about_title))
+            .setIcon(R.drawable.zyphra_logo)
+            .setMessage(
+                "LibreWolf Android ${BuildConfig.VERSION_NAME}\n" +
+                    "Upstream Firefox: ${BuildConfig.UPSTREAM_FIREFOX} / LW release ${BuildConfig.ZYPHRA_RELEASE}\n" +
+                    "Engine: GeckoView ${ZyphraDefaults.GECKOVIEW_VERSION}\n\n" +
+                    "Privacy defaults ported from source/settings/librewolf.cfg.\n" +
+                    "No telemetry. Updates: ${ZyphraDefaults.UPDATE_URL}",
+            )
+            .setPositiveButton(android.R.string.ok, null)
+            .setNeutralButton(R.string.open_site) { _, _ ->
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(ZyphraDefaults.HOMEPAGE)))
+            }
+            .show()
+    }
+}

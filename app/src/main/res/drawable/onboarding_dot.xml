@@ -3,13 +3,13 @@
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_selected="true">
         <shape android:shape="oval">
-            <solid android:color="@color/librewolf_accent" />
+            <solid android:color="@color/zyphra_accent" />
             <size android:width="8dp" android:height="8dp" />
         </shape>
     </item>
     <item>
         <shape android:shape="oval">
-            <solid android:color="@color/librewolf_chip_stroke" />
+            <solid android:color="@color/zyphra_chip_stroke" />
             <size android:width="8dp" android:height="8dp" />
         </shape>
     </item>

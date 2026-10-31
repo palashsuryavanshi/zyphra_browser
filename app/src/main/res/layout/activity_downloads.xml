@@ -2,7 +2,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/librewolf_bg"
+    android:background="@color/zyphra_bg"
     android:orientation="vertical">
 
     <LinearLayout
@@ -25,7 +25,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="@string/downloads"
-            android:textColor="@color/librewolf_text"
+            android:textColor="@color/zyphra_text"
             android:textSize="24sp" />
 
         <ImageButton
@@ -59,7 +59,7 @@
             android:paddingEnd="18dp"
             android:paddingBottom="10dp"
             android:text="@string/filter_all"
-            android:textColor="@color/librewolf_text" />
+            android:textColor="@color/zyphra_text" />
 
         <TextView
             android:id="@+id/chip_images"
@@ -74,7 +74,7 @@
             android:paddingEnd="18dp"
             android:paddingBottom="10dp"
             android:text="@string/filter_images"
-            android:textColor="@color/librewolf_grey" />
+            android:textColor="@color/zyphra_grey" />
 
         <TextView
             android:id="@+id/chip_docs"
@@ -89,7 +89,7 @@
             android:paddingEnd="18dp"
             android:paddingBottom="10dp"
             android:text="@string/filter_docs"
-            android:textColor="@color/librewolf_grey" />
+            android:textColor="@color/zyphra_grey" />
 
         <TextView
             android:id="@+id/chip_other"
@@ -103,7 +103,7 @@
             android:paddingEnd="18dp"
             android:paddingBottom="10dp"
             android:text="@string/filter_other"
-            android:textColor="@color/librewolf_grey" />
+            android:textColor="@color/zyphra_grey" />
     </LinearLayout>
 
     <FrameLayout

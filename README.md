@@ -530,7 +530,7 @@ key, so an uninstall is unavoidable. See
 
 #### The package name has changed twice
 
-The application id is **`com.palash.librewolfandroid`**. Android identifies apps
+The application id is **`com.zyphra.browser`**. Android identifies apps
 by package name, so **a rename means a different app** — the two cannot update
 into each other, and the only path is uninstall, which deletes the data.
 
@@ -690,7 +690,7 @@ mean it works.
 
 ## Source layout
 
-One Gradle module, `app`. One package, `com.palash.librewolfandroid` — about
+One Gradle module, `app`. One package, `com.zyphra.browser` — about
 10,800 lines of Kotlin across 50 files, plus 25 layouts, 635 strings and 52
 drawables. It is deliberately a flat package: the classes are collaborators, not
 a hierarchy.
@@ -699,10 +699,10 @@ a hierarchy.
 app/src/main/
 ├── AndroidManifest.xml          10 permissions, no required hardware features
 ├── java/com/palash/librewolfandroid/
-│   ├── LibreWolfApplication.kt        Application entry point
+│   ├── ZyphraApplication.kt        Application entry point
 │   ├── MainActivity.kt        (2220) the browser itself: engine wiring, tabs,
 │   │                                 address bar, menu, prompts, downloads
-│   ├── LibreWolfDefaults.kt   (128)  the privacy specification, ported from
+│   ├── ZyphraDefaults.kt   (128)  the privacy specification, ported from
 │   │                                 desktop librewolf.cfg and policies.json
 │   ├── BrowserPromptDelegate.kt       GeckoView prompt callbacks → Android dialogs
 │   ├── BrowserPermissionDelegate.kt   per-site permission decisions
@@ -745,7 +745,7 @@ app/src/main/
 
 | If you want to change… | Look in |
 |---|---|
-| The privacy defaults, DoH list, strip lists, add-on list | `LibreWolfDefaults.kt` |
+| The privacy defaults, DoH list, strip lists, add-on list | `ZyphraDefaults.kt` |
 | The engine's runtime settings (ETP, cookies, HTTPS, GPC) | `MainActivity.buildRuntimeSettings()` |
 | What the menu contains | `MainActivity.showMenuSheet()` and `MenuSheet.kt` |
 | A settings row | `SettingsScreens.kt` — the tree is data, not control flow |
@@ -847,7 +847,7 @@ meant to be checkable.
 
 ## Notes
 
-- **Package name:** `com.palash.librewolfandroid`. The application id and the
+- **Package name:** `com.zyphra.browser`. The application id and the
   release signing key are bound to each other; see
   [Application identity](TESTING.md#application-identity).
 - **Versions:** the current release is `1.2beta3` (`versionCode 156005`), built

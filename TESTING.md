@@ -83,7 +83,7 @@ Search engines are offered in a curated order rather than alphabetically, and th
 choice is stored **by name**. It was stored by position, which meant reordering the
 list would have silently moved every existing user to whichever engine took their
 slot; a position written by an older build is now read through
-`LibreWolfDefaults.LEGACY_SEARCH_ORDER`, which keeps the old positions and the
+`ZyphraDefaults.LEGACY_SEARCH_ORDER`, which keeps the old positions and the
 current names.
 
 **Remote debugging is gated on the build type.** The switch is absent from a
@@ -128,7 +128,7 @@ before the version code.
 
 ## Application identity
 
-The application id is **`com.palash.librewolfandroid`**, and it is the identity the
+The application id is **`com.zyphra.browser`**, and it is the identity the
 release key is bound to.
 
 It was previously `net.librewolf.android`. That was the wrong namespace to ship
@@ -147,9 +147,9 @@ into each other, so anyone who installed the old id has to uninstall it, and
 doing so deletes their history, bookmarks, cookies and password vault.
 
 Verified on the signed arm64 release after the rename: the built manifest reports
-`package="com.palash.librewolfandroid"` with the launchable activity in the same
+`package="com.zyphra.browser"` with the launchable activity in the same
 namespace, and `aapt2` confirms the `FileProvider` authority resolved to
-`com.palash.librewolfandroid.fileprovider`. That last one is the classic rename
+`com.zyphra.browser.fileprovider`. That last one is the classic rename
 break — the manifest uses `${applicationId}.fileprovider` while the code builds
 the same authority from `packageName` at runtime, and the two had to move
 together or every file share would throw. `example.org` loaded, the menu opened,

@@ -6,6 +6,6 @@
      equalled half the height, which made the ends fully round. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
-    <solid android:color="@color/librewolf_card" />
+    <solid android:color="@color/zyphra_card" />
     <corners android:radius="12dp" />
 </shape>

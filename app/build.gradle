@@ -68,7 +68,7 @@ if (hasReleaseKey) {
 }
 
 android {
-    namespace 'com.palash.librewolfandroid'
+    namespace 'com.zyphra.browser'
     compileSdk 37
     // buildToolsVersion is deliberately NOT pinned. Pinning it to one exact
     // revision means the build fails outright on any machine that does not
@@ -78,7 +78,7 @@ android {
     // revision the builder happens to ship.
 
     defaultConfig {
-        applicationId 'com.palash.librewolfandroid'
+        applicationId 'com.zyphra.browser'
         minSdk 26
         targetSdk 34
         // versionCode must strictly increase for an update to install over an
@@ -103,7 +103,7 @@ android {
         // separate from versionName so About can show what this app is and what
         // engine it is based on without conflating the two.
         buildConfigField 'String', 'UPSTREAM_FIREFOX', '"156.0"'
-        buildConfigField 'String', 'LIBREWOLF_RELEASE', '"1"'
+        buildConfigField 'String', 'ZYPHRA_RELEASE', '"1"'
         // True only in the F-Droid build. The UI reads it so the Passkeys
         // screen can state that passkeys are unavailable rather than imply
         // they work, which they cannot without Play Services.

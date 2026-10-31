@@ -24,5 +24,8 @@ keystore.properties
 .DS_Store
 Thumbs.db
 
+# Agent interface document — not part of the repo, kept locally for debugging
+agentandroidinterface.md
+
 # Gradle wrapper jar is intentionally committed so builds work out of the box
 !gradle/wrapper/gradle-wrapper.jar

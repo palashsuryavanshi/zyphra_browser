@@ -32,18 +32,18 @@ referrer handling. No user account. There is no account system and no sync.
 ## 3. Data stored on the device
 
 All of it is inside the app's private data directory
-(`/data/data/com.palash.librewolfandroid/`), which no other app can read without
+(`/data/data/com.zyphra.browser/`), which no other app can read without
 root or a debugger.
 
 | Data | Where | Created | Encrypted | Backed up | Deleted by |
 |---|---|---|---|---|---|
-| History (URL, title, time) | `shared_prefs/librewolf_history.xml` | page commit | no | **no** | Settings → Clear |
-| Bookmarks | `shared_prefs/librewolf_bookmarks.xml` | user action | no | **no** | Settings → Clear |
+| History (URL, title, time) | `shared_prefs/zyphra_history.xml` | page commit | no | **no** | Settings → Clear |
+| Bookmarks | `shared_prefs/zyphra_bookmarks.xml` | user action | no | **no** | Settings → Clear |
 | Site permissions | `shared_prefs/site_permissions.xml` | user decision | no | **no** | site-data clear |
 | Saved sessions | `shared_prefs/browser_sessions.xml` | page commit / pause | no | **no** | session overwrite |
-| Download list | `shared_prefs/librewolf_downloads.xml` | download start | no | **no** | per-item / clear finished |
-| Settings | `shared_prefs/librewolf_privacy.xml` | user action | no | **no** | app data clear |
-| Password vault | `shared_prefs/librewolf_vault.xml` | user saves a login | **yes** | **no** | per-item / clear all |
+| Download list | `shared_prefs/zyphra_downloads.xml` | download start | no | **no** | per-item / clear finished |
+| Settings | `shared_prefs/zyphra_privacy.xml` | user action | no | **no** | app data clear |
+| Password vault | `shared_prefs/zyphra_vault.xml` | user saves a login | **yes** | **no** | per-item / clear all |
 | Cookies, cache, localStorage, IndexedDB, service workers | Gecko profile `files/mozilla/*.default/` | engine | no | **no** | engine data clear |
 | Camera captures | `cache/uploads/` | file input with camera | no | **no** | cache eviction |
 | Crash minidumps | Gecko profile `minidumps/` | engine crash | no | **no** | profile cleanup |
