@@ -5,7 +5,9 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.ImageButton
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -53,8 +55,9 @@ class ExtensionsActivity : AppCompatActivity() {
 
         adapter = ExtensionsAdapter(
             emptyList(),
-            onRemove = { uninstall(it) },
-            onManage = { showManageDialog(it) },
+            onToggleEnable = { setEnabled(it, !it.enabled) },
+            onShowSettings = { openExtensionSettings(it) },
+            onUninstallExt = { uninstall(it) },
         )
         addonsAdapter = AddonsAdapter(emptyList())
         findViewById<RecyclerView>(R.id.extensions_available_list).apply {
@@ -509,15 +512,20 @@ class ExtensionsActivity : AppCompatActivity() {
 
     class ExtensionsAdapter(
         private var items: List<ExtInfo>,
-        private val onRemove: (ExtInfo) -> Unit,
-        private val onManage: (ExtInfo) -> Unit,
+        private val onToggleEnable: (ExtInfo) -> Unit,
+        private val onShowSettings: (ExtInfo) -> Unit,
+        private val onUninstallExt: (ExtInfo) -> Unit,
+        private val onRemove: (ExtInfo) -> Unit = {},
     ) : RecyclerView.Adapter<ExtensionsAdapter.VH>() {
 
         class VH(v: View) : RecyclerView.ViewHolder(v) {
             val name: TextView = v.findViewById(R.id.ext_name)
             val sub: TextView = v.findViewById(R.id.ext_sub)
-            val manage: ImageButton = v.findViewById(R.id.ext_manage)
             val remove: ImageButton = v.findViewById(R.id.ext_remove)
+            val actionsRow: LinearLayout = v.findViewById(R.id.ext_actions_row)
+            val toggle: Button = v.findViewById(R.id.ext_toggle)
+            val settings: Button = v.findViewById(R.id.ext_settings)
+            val uninstall: Button = v.findViewById(R.id.ext_uninstall)
         }
 
         fun update(items: List<ExtInfo>) {
@@ -544,10 +552,17 @@ class ExtensionsActivity : AppCompatActivity() {
             // enable/disable, settings and uninstall all live behind it. The
             // trash keeps its own listener, which takes precedence over the
             // row's on a child view.
-            h.manage.setOnClickListener { onManage(e) }
-            h.manage.visibility = android.view.View.VISIBLE
-            h.remove.setOnClickListener { onRemove(e) }
-            h.itemView.setOnClickListener { onManage(e) }
+            h.actionsRow.visibility = android.view.View.VISIBLE
+            h.remove.visibility = android.view.View.GONE
+            h.toggle.text = ctx.getString(if (e.enabled) R.string.ext_disable else R.string.ext_enable)
+            h.toggle.setOnClickListener { onToggleEnable(e) }
+            if (e.optionsUrl != null) {
+                h.settings.visibility = android.view.View.VISIBLE
+                h.settings.setOnClickListener { onShowSettings(e) }
+            } else {
+                h.settings.visibility = android.view.View.GONE
+            }
+            h.uninstall.setOnClickListener { onUninstallExt(e) }
         }
 
         override fun getItemCount(): Int = items.size
@@ -566,7 +581,7 @@ class ExtensionsActivity : AppCompatActivity() {
             val name: TextView = v.findViewById(R.id.ext_name)
             val sub: TextView = v.findViewById(R.id.ext_sub)
             val action: ImageButton = v.findViewById(R.id.ext_remove)
-            val manage: ImageButton = v.findViewById(R.id.ext_manage)
+            val actionsRow: LinearLayout = v.findViewById(R.id.ext_actions_row)
         }
 
         fun update(items: List<AddonRow>) {
@@ -582,7 +597,7 @@ class ExtensionsActivity : AppCompatActivity() {
         override fun onBindViewHolder(h: VH, position: Int) {
             val row = items[position]
             val ctx = h.itemView.context
-            h.manage.visibility = android.view.View.GONE
+            h.actionsRow.visibility = android.view.View.GONE
             h.name.text = row.addon.name
             h.sub.text = row.addon.summary
             h.sub.visibility = View.VISIBLE
@@ -614,3 +629,4 @@ class ExtensionsActivity : AppCompatActivity() {
         override fun getItemCount(): Int = items.size
     }
 }
+
