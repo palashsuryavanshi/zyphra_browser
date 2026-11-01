@@ -50,6 +50,15 @@
     </LinearLayout>
 
     <ImageButton
+        android:id="@+id/ext_manage"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_marginStart="8dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/extensions"
+        android:src="@drawable/ic_gear" />
+
+    <ImageButton
         android:id="@+id/ext_remove"
         android:layout_width="40dp"
         android:layout_height="40dp"

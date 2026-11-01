@@ -516,6 +516,7 @@ class ExtensionsActivity : AppCompatActivity() {
         class VH(v: View) : RecyclerView.ViewHolder(v) {
             val name: TextView = v.findViewById(R.id.ext_name)
             val sub: TextView = v.findViewById(R.id.ext_sub)
+            val manage: ImageButton = v.findViewById(R.id.ext_manage)
             val remove: ImageButton = v.findViewById(R.id.ext_remove)
         }
 
@@ -543,8 +544,10 @@ class ExtensionsActivity : AppCompatActivity() {
             // enable/disable, settings and uninstall all live behind it. The
             // trash keeps its own listener, which takes precedence over the
             // row's on a child view.
-            h.itemView.setOnClickListener { onManage(e) }
+            h.manage.setOnClickListener { onManage(e) }
+            h.manage.visibility = android.view.View.VISIBLE
             h.remove.setOnClickListener { onRemove(e) }
+            h.itemView.setOnClickListener { onManage(e) }
         }
 
         override fun getItemCount(): Int = items.size
@@ -563,6 +566,7 @@ class ExtensionsActivity : AppCompatActivity() {
             val name: TextView = v.findViewById(R.id.ext_name)
             val sub: TextView = v.findViewById(R.id.ext_sub)
             val action: ImageButton = v.findViewById(R.id.ext_remove)
+            val manage: ImageButton = v.findViewById(R.id.ext_manage)
         }
 
         fun update(items: List<AddonRow>) {
@@ -578,6 +582,7 @@ class ExtensionsActivity : AppCompatActivity() {
         override fun onBindViewHolder(h: VH, position: Int) {
             val row = items[position]
             val ctx = h.itemView.context
+            h.manage.visibility = android.view.View.GONE
             h.name.text = row.addon.name
             h.sub.text = row.addon.summary
             h.sub.visibility = View.VISIBLE
