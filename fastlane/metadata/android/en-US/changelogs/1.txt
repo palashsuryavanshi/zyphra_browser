@@ -1,1 +1,0 @@
-Zyphra Browser v1.0 - the first release. GeckoView-powered, private by default: tracking protection, query stripping, HTTPS-only mode, encrypted DNS and no telemetry.
