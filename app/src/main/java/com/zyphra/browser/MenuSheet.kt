@@ -47,7 +47,10 @@ class MenuSheet : BottomSheetDialogFragment() {
     ): View = inflater.inflate(R.layout.sheet_menu, container, false)
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        view.findViewById<View>(R.id.row_extensions).visibility = View.GONE
+        view.findViewById<View>(R.id.row_extensions).setOnClickListener {
+            dismiss()
+            context?.startActivity(Intent(context, ExtensionsActivity::class.java))
+        }
         view.findViewById<View>(R.id.tile_history).setOnClickListener { dismiss(); onHistory() }
         view.findViewById<View>(R.id.tile_bookmarks).setOnClickListener { dismiss(); onBookmarks() }
         view.findViewById<View>(R.id.tile_downloads).setOnClickListener { dismiss(); onDownloads() }
