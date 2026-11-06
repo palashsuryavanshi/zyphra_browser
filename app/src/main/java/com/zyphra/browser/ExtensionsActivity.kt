@@ -5,7 +5,9 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.ImageButton
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -31,7 +33,7 @@ data class ExtInfo(
     fun statusLine(ctx: android.content.Context): String = listOf(
         sub,
         ctx.getString(if (enabled) R.string.ext_enabled else R.string.ext_disabled),
-    ).filter { it.isNotBlank() }.joinToString(" • ")
+    ).filter { it.isNotBlank() }.joinToString(" â€¢ ")
 }
 
 /** One row in the installable list: tapping it installs. */
@@ -53,8 +55,9 @@ class ExtensionsActivity : AppCompatActivity() {
 
         adapter = ExtensionsAdapter(
             emptyList(),
-            onRemove = { uninstall(it) },
-            onManage = { showManageDialog(it) },
+            onToggleEnable = { setEnabled(it, !it.enabled) },
+            onShowSettings = { openExtensionSettings(it) },
+            onUninstallExt = { uninstall(it) },
         )
         addonsAdapter = AddonsAdapter(emptyList())
         findViewById<RecyclerView>(R.id.extensions_available_list).apply {
@@ -349,7 +352,7 @@ class ExtensionsActivity : AppCompatActivity() {
                                     sub = listOf(
                                         ext.metaData.version,
                                         ext.metaData.description,
-                                    ).filter { s -> !s.isNullOrEmpty() }.joinToString(" • "),
+                                    ).filter { s -> !s.isNullOrEmpty() }.joinToString(" â€¢ "),
                                     enabled = ext.metaData.enabled,
                                     optionsUrl = ext.metaData.optionsPageUrl
                                         ?.takeIf { u -> u.isNotBlank() }
@@ -509,14 +512,20 @@ class ExtensionsActivity : AppCompatActivity() {
 
     class ExtensionsAdapter(
         private var items: List<ExtInfo>,
-        private val onRemove: (ExtInfo) -> Unit,
-        private val onManage: (ExtInfo) -> Unit,
+        private val onToggleEnable: (ExtInfo) -> Unit,
+        private val onShowSettings: (ExtInfo) -> Unit,
+        private val onUninstallExt: (ExtInfo) -> Unit,
+        private val onRemove: (ExtInfo) -> Unit = {},
     ) : RecyclerView.Adapter<ExtensionsAdapter.VH>() {
 
         class VH(v: View) : RecyclerView.ViewHolder(v) {
             val name: TextView = v.findViewById(R.id.ext_name)
             val sub: TextView = v.findViewById(R.id.ext_sub)
             val remove: ImageButton = v.findViewById(R.id.ext_remove)
+            val actionsRow: LinearLayout = v.findViewById(R.id.ext_actions_row)
+            val toggle: Button = v.findViewById(R.id.ext_toggle)
+            val settings: Button = v.findViewById(R.id.ext_settings)
+            val uninstall: Button = v.findViewById(R.id.ext_uninstall)
         }
 
         fun update(items: List<ExtInfo>) {
@@ -543,8 +552,17 @@ class ExtensionsActivity : AppCompatActivity() {
             // enable/disable, settings and uninstall all live behind it. The
             // trash keeps its own listener, which takes precedence over the
             // row's on a child view.
-            h.itemView.setOnClickListener { onManage(e) }
-            h.remove.setOnClickListener { onRemove(e) }
+            h.actionsRow.visibility = android.view.View.VISIBLE
+            h.remove.visibility = android.view.View.GONE
+            h.toggle.text = ctx.getString(if (e.enabled) R.string.ext_disable else R.string.ext_enable)
+            h.toggle.setOnClickListener { onToggleEnable(e) }
+            if (e.optionsUrl != null) {
+                h.settings.visibility = android.view.View.VISIBLE
+                h.settings.setOnClickListener { onShowSettings(e) }
+            } else {
+                h.settings.visibility = android.view.View.GONE
+            }
+            h.uninstall.setOnClickListener { onUninstallExt(e) }
         }
 
         override fun getItemCount(): Int = items.size
@@ -563,6 +581,7 @@ class ExtensionsActivity : AppCompatActivity() {
             val name: TextView = v.findViewById(R.id.ext_name)
             val sub: TextView = v.findViewById(R.id.ext_sub)
             val action: ImageButton = v.findViewById(R.id.ext_remove)
+            val actionsRow: LinearLayout = v.findViewById(R.id.ext_actions_row)
         }
 
         fun update(items: List<AddonRow>) {
@@ -578,6 +597,7 @@ class ExtensionsActivity : AppCompatActivity() {
         override fun onBindViewHolder(h: VH, position: Int) {
             val row = items[position]
             val ctx = h.itemView.context
+            h.actionsRow.visibility = android.view.View.GONE
             h.name.text = row.addon.name
             h.sub.text = row.addon.summary
             h.sub.visibility = View.VISIBLE
