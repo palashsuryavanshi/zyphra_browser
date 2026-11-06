@@ -39,6 +39,7 @@
     <string name="extensions_sub">Install add-ons from Mozilla AMO</string>
     <string name="extensions_available">Available to install</string>
     <string name="extensions_installed">Installed</string>
+    <string name="extensions_no_installed">No extensions installed yet</string>
     <string name="install_addon">Install %1$s?</string>
     <string name="extensions_unsupported">Extensions are not supported in this build.</string>
     <string name="history">History</string>

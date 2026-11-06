@@ -14,6 +14,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.tabs.TabLayout
 import org.mozilla.geckoview.GeckoResult
 import org.mozilla.geckoview.WebExtension
 import org.mozilla.geckoview.WebExtensionController
@@ -33,7 +34,7 @@ data class ExtInfo(
     fun statusLine(ctx: android.content.Context): String = listOf(
         sub,
         ctx.getString(if (enabled) R.string.ext_enabled else R.string.ext_disabled),
-    ).filter { it.isNotBlank() }.joinToString(" â€¢ ")
+    ).filter { it.isNotBlank() }.joinToString(" • ")
 }
 
 /** One row in the installable list: tapping it installs. */
@@ -69,6 +70,7 @@ class ExtensionsActivity : AppCompatActivity() {
             adapter = this@ExtensionsActivity.adapter
         }
         findViewById<View>(R.id.extensions_back).setOnClickListener { finish() }
+        setupTabs()
         wireDelegates()
         reload()
     }
@@ -76,6 +78,31 @@ class ExtensionsActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         reload()
+    }
+
+    /**
+     * Two tabs: installed add-ons first, because that is where management
+     * lives, and available add-ons second. The installed list always exists
+     * (with a plain empty state when nothing is installed), so the user can
+     * manage add-ons without scrolling through the install list.
+     */
+    private fun setupTabs() {
+        val tabs = findViewById<TabLayout>(R.id.extensions_tabs)
+        val installed = findViewById<View>(R.id.extensions_installed_container)
+        val available = findViewById<View>(R.id.extensions_available_container)
+        tabs.addTab(tabs.newTab().setText(R.string.extensions_installed))
+        tabs.addTab(tabs.newTab().setText(R.string.extensions_available))
+        tabs.getTabAt(0)?.select()
+        tabs.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
+            override fun onTabSelected(tab: TabLayout.Tab) {
+                val showInstalled = tab.position == 0
+                installed.visibility = if (showInstalled) View.VISIBLE else View.GONE
+                available.visibility = if (showInstalled) View.GONE else View.VISIBLE
+            }
+
+            override fun onTabUnselected(tab: TabLayout.Tab) {}
+            override fun onTabReselected(tab: TabLayout.Tab) {}
+        })
     }
 
     private fun controller(): WebExtensionController? {
@@ -352,7 +379,7 @@ class ExtensionsActivity : AppCompatActivity() {
                                     sub = listOf(
                                         ext.metaData.version,
                                         ext.metaData.description,
-                                    ).filter { s -> !s.isNullOrEmpty() }.joinToString(" â€¢ "),
+                                    ).filter { s -> !s.isNullOrEmpty() }.joinToString(" • "),
                                     enabled = ext.metaData.enabled,
                                     optionsUrl = ext.metaData.optionsPageUrl
                                         ?.takeIf { u -> u.isNotBlank() }
@@ -364,8 +391,11 @@ class ExtensionsActivity : AppCompatActivity() {
                                 )
                             },
                         )
-                        // The installed header is meaningless with nothing under it.
-                        findViewById<View>(R.id.extensions_installed_header).visibility =
+                        // With nothing installed, show the plain empty state
+                        // instead of a list with no rows.
+                        findViewById<View>(R.id.extensions_installed_empty).visibility =
+                            if (installed.isEmpty()) View.VISIBLE else View.GONE
+                        findViewById<View>(R.id.extensions_list).visibility =
                             if (installed.isEmpty()) View.GONE else View.VISIBLE
                     }
                 },
