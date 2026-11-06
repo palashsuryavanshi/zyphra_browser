@@ -26,7 +26,7 @@ import java.util.regex.Pattern
  * text, so a translation or a layout change cannot silently retarget a tap.
  */
 object Ui {
-    private val device: UiDevice by lazy {
+    internal val device: UiDevice by lazy {
         UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
     }
 

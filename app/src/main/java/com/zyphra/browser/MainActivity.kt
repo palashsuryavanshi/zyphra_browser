@@ -651,6 +651,7 @@ class MainActivity : AppCompatActivity() {
             tab.isError = false
             tab.isLoading = true
             tab.isHome = false
+            updateBadge()
             if (!tab.isPrivate) {
                 FaviconCache.load(url) {
                     if (!isFinishing && !isDestroyed && tabFor(session)?.url == url) {
@@ -2112,6 +2113,7 @@ class MainActivity : AppCompatActivity() {
         if (text.startsWith("data:")) {
             tab.session.loadUri(text)
             tab.isHome = false
+            updateBadge()
             tab.isError = false
             homeOverlay.visibility = View.GONE
             geckoView.visibility = View.VISIBLE
@@ -2147,6 +2149,7 @@ class MainActivity : AppCompatActivity() {
         }
         tab.isHome = false
         tab.isError = false
+        updateBadge()
         homeOverlay.visibility = View.GONE
         geckoView.visibility = View.VISIBLE
         hideSuggestions()
@@ -2157,6 +2160,7 @@ class MainActivity : AppCompatActivity() {
         val tab = activeTab() ?: return false
         val engine = store.engineFor(tab.isPrivate)
         tab.isHome = false
+        updateBadge()
         tab.isError = false
         homeOverlay.visibility = View.GONE
         geckoView.visibility = View.VISIBLE
@@ -2168,6 +2172,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun showHomeState(tab: Tab) {
         tab.isHome = true
+        updateBadge()
         tab.isError = false
         tab.url = ""
         tab.title = ""
@@ -2252,6 +2257,7 @@ class MainActivity : AppCompatActivity() {
         val current = activeTab()
         val tab = newTab(isPrivate = current?.isPrivate == true, select = select)
         tab.isHome = false
+        updateBadge()
         if (select) {
             homeOverlay.visibility = View.GONE
             geckoView.visibility = View.VISIBLE
