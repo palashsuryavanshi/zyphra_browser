@@ -514,6 +514,12 @@ class MainActivity : AppCompatActivity() {
         ): GeckoResult<AllowOrDeny> {
             val uri = request.uri
             val scheme = runCatching { Uri.parse(uri).scheme?.lowercase() }.getOrNull()
+            // An extension's own page is ordinary engine content, not an
+            // Android intent target. It opens in a Gecko session like any web
+            // page, and it must never be handed to an external app.
+            if (scheme == "moz-extension" || uri.startsWith("moz-extension:", ignoreCase = true)) {
+                return GeckoResult.fromValue(AllowOrDeny.ALLOW)
+            }
             if (scheme == "http" || scheme == "https" || scheme == "about" || scheme == "data" ||
                 scheme == "file" || scheme == "blob" || scheme == "content" || scheme == "filesystem"
             ) {
@@ -2544,6 +2550,9 @@ class MainActivity : AppCompatActivity() {
      * normal VIEW action and an http(s) target still opens.
      */
     private fun openExternalUri(uri: String) {
+        // An extension page is engine content. It is not a link to hand to
+        // another app even if "Open links in apps" is on.
+        if (uri.startsWith("moz-extension:", ignoreCase = true)) return
         if (!store.openLinksInApps) return
         // An empty or unparsable URI would launch a content-less VIEW intent and
         // fail with an opaque system error.
