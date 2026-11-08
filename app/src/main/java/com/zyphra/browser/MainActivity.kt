@@ -2563,6 +2563,19 @@ class MainActivity : AppCompatActivity() {
         // An empty or unparsable URI would launch a content-less VIEW intent and
         // fail with an opaque system error.
         if (uri.isBlank() || Uri.parse(uri).scheme.isNullOrBlank()) return
+        
+        // Validate URI scheme security
+        val scheme = Uri.parse(uri).scheme?.lowercase()
+        val allowedSchemes = setOf("http", "https", "mailto", "tel", "sms", "smsto", 
+                                 "geo", "market", "news", "sip", "sips", "webcal", 
+                                 "im", "irc", "ircs", "xmpp")
+        
+        if (scheme != null && scheme !in allowedSchemes) {
+            Log.w("MainActivity", "Blocked unsafe URI scheme: $scheme in $uri")
+            Toast.makeText(this, getString(R.string.not_available), Toast.LENGTH_SHORT).show()
+            return
+        }
+        
         val intent = try {
             if (uri.startsWith("intent:", ignoreCase = true)) {
                 hardenWebIntent(Intent.parseUri(uri, Intent.URI_INTENT_SCHEME))

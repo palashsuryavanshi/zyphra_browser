@@ -153,6 +153,49 @@ class BrowserPermissionDelegate(
         launchAndroidPermissions(missing, callback)
     }
 
+    private fun ensureAndroidPermissionsWithRationale(
+        permissions: Array<String>,
+        callback: (Boolean) -> Unit,
+    ) {
+        val missing = permissions.filter {
+            ContextCompat.checkSelfPermission(activity, it) != PackageManager.PERMISSION_GRANTED
+        }.distinct().toTypedArray()
+        if (missing.isEmpty()) {
+            callback(true)
+            return
+        }
+        
+        // Check if any permission needs rationale
+        val needsRationale = missing.any { permission ->
+            shouldShowRequestPermissionRationale(permission)
+        }
+        
+        if (needsRationale) {
+            showRationaleDialogForPermissions(missing, callback)
+        } else {
+            launchAndroidPermissions(missing, callback)
+        }
+    }
+
+    private fun showRationaleDialogForPermissions(
+        permissions: Array<String>,
+        callback: (Boolean) -> Unit,
+    ) {
+        val permissionNames = permissions.map { permissionName(it) }.joinToString(", ")
+        
+        AlertDialog.Builder(activity)
+            .setTitle("Permissions Required")
+            .setMessage("These permissions are needed to continue: $permissionNames")
+            .setPositiveButton("Continue") { _, _ ->
+                launchAndroidPermissions(permissions, callback)
+            }
+            .setNegativeButton("Cancel", null)
+            .setOnDismissListener {
+                callback(false)
+            }
+            .show()
+    }
+
     private fun permissionName(permission: Int): String = when (permission) {
         GeckoSession.PermissionDelegate.PERMISSION_GEOLOCATION -> activity.getString(R.string.permission_location)
         GeckoSession.PermissionDelegate.PERMISSION_DESKTOP_NOTIFICATION -> activity.getString(R.string.permission_notifications)

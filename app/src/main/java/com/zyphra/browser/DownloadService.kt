@@ -10,6 +10,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
 
 /**
@@ -25,6 +26,19 @@ class DownloadService : Service() {
         const val ACTION_RESUME = "com.zyphra.browser.DOWNLOAD_RESUME"
         const val ACTION_CANCEL = "com.zyphra.browser.DOWNLOAD_CANCEL"
         const val EXTRA_ID = "id"
+        
+        /**
+         * Verifies caller authorization before executing download actions.
+         */
+        fun verifyCallerForAction(context: Context, action: String): Boolean {
+            return try {
+                CallerVerifier.enforceAuthorizedCaller(context, "download action: $action")
+                true
+            } catch (e: SecurityException) {
+                Log.w("DownloadService", "Unauthorized $action attempt", e)
+                false
+            }
+        }
 
         /** Progress repaints are throttled; the byte counter moves far faster. */
         private const val PROGRESS_THROTTLE_MS = 750L
