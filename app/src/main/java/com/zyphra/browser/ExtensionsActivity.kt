@@ -96,8 +96,9 @@ class ExtensionsActivity : AppCompatActivity() {
         tabs.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: TabLayout.Tab) {
                 val showInstalled = tab.position == 0
-                installed.visibility = if (showInstalled) View.VISIBLE else View.GONE
-                available.visibility = if (showInstalled) View.GONE else View.VISIBLE
+                // Use View.INVISIBLE instead of View.GONE to preserve RecyclerView state
+                installed.visibility = if (showInstalled) View.VISIBLE else View.INVISIBLE
+                available.visibility = if (showInstalled) View.INVISIBLE else View.VISIBLE
             }
 
             override fun onTabUnselected(tab: TabLayout.Tab) {}

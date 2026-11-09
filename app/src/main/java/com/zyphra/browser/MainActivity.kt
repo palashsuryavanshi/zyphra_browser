@@ -231,6 +231,10 @@ class MainActivity : AppCompatActivity() {
     private var webAppManifest: org.json.JSONObject? = null
     private var webAppUrl: String? = null
     private var webAppIconUrl: String? = null
+    
+    // Memory optimization: cache for bitmaps to prevent repeated allocations
+    private val bitmapCache = mutableMapOf<String, android.graphics.Bitmap>()
+    private val maxCacheSize = 50 // Maximum number of bitmaps to cache
 
     /** Which tab shipped [webAppManifest]. -1 when none has. */
     private var webAppManifestTabId: Long = -1L
@@ -505,6 +509,29 @@ class MainActivity : AppCompatActivity() {
 
     init {
         trayTrackersText = ""
+    }
+
+    // ---- Memory optimization: bitmap cache management ----
+    
+    private fun getBitmapFromCache(key: String): android.graphics.Bitmap? {
+        return bitmapCache[key]
+    }
+    
+    private fun putBitmapInCache(key: String, bitmap: android.graphics.Bitmap) {
+        // Remove oldest entry if cache is full
+        if (bitmapCache.size >= maxCacheSize) {
+            bitmapCache.remove(bitmapCache.keys.first())
+        }
+        bitmapCache[key] = bitmap
+    }
+    
+    private fun clearBitmapCache() {
+        bitmapCache.values.forEach { bitmap ->
+            if (!bitmap.isRecycled) {
+                bitmap.recycle()
+            }
+        }
+        bitmapCache.clear()
     }
 
     private fun tabFor(session: GeckoSession): Tab? = tabs.find { it.session === session }
@@ -3290,6 +3317,8 @@ class MainActivity : AppCompatActivity() {
             for (tab in tabs) tab.session.close()
             tabs.clear()
         }
+        // Clean up bitmap cache to prevent memory leaks
+        clearBitmapCache()
         super.onDestroy()
     }
 

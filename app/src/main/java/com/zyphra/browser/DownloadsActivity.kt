@@ -15,6 +15,10 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Downloads screen backed by the in-app engine, so pause/resume are real
@@ -140,35 +144,40 @@ class DownloadsActivity : AppCompatActivity() {
     }
 
     private fun reload() {
-        val all = store.all()
-        val shown = all.filter { t ->
-            val okFilter = when (filter) {
-                1 -> t.mime.startsWith("image/")
-                2 -> t.mime.startsWith("application/pdf") || t.mime.contains("word") ||
-                    t.mime.contains("officedocument") || t.mime.startsWith("text/")
-                3 -> !(t.mime.startsWith("image/") || t.mime.startsWith("application/pdf") ||
-                    t.mime.contains("word") || t.mime.contains("officedocument") ||
-                    t.mime.startsWith("text/"))
-                else -> true
+        MainScope().launch {
+            val all = store.all()
+            val shown = withContext(Dispatchers.Default) {
+                all.filter { t ->
+                    val okFilter = when (filter) {
+                        1 -> t.mime.startsWith("image/")
+                        2 -> t.mime.startsWith("application/pdf") || t.mime.contains("word") ||
+                            t.mime.contains("officedocument") || t.mime.startsWith("text/")
+                        3 -> !(t.mime.startsWith("image/") || t.mime.startsWith("application/pdf") ||
+                            t.mime.contains("word") || t.mime.contains("officedocument") ||
+                            t.mime.startsWith("text/"))
+                        else -> true
+                    }
+                    okFilter && (query.isEmpty() || t.name.contains(query, true))
+                }
             }
-            okFilter && (query.isEmpty() || t.name.contains(query, true))
+            val statusAndFolderPairs = shown.map { it to statusLabel(it) + folderLabel(it) }
+            adapter.update(statusAndFolderPairs)
+            // The message distinguishes "nothing has ever been downloaded" from
+            // "nothing in this filter". The old check was against the whole store,
+            // so picking Images with no images on the device produced a blank screen
+            // with no explanation, and the Toast repeated on every onResume.
+            emptyState.bind(
+                shown.size,
+                {
+                    if (all.isEmpty()) getString(R.string.no_downloads) else getString(R.string.no_downloads_match)
+                },
+                if (all.isEmpty()) {
+                    { getString(R.string.no_downloads_hint) }
+                } else {
+                    null
+                },
+            )
         }
-        adapter.update(shown.map { it to statusLabel(it) + folderLabel(it) })
-        // The message distinguishes "nothing has ever been downloaded" from
-        // "nothing in this filter". The old check was against the whole store,
-        // so picking Images with no images on the device produced a blank screen
-        // with no explanation, and the Toast repeated on every onResume.
-        emptyState.bind(
-            shown.size,
-            {
-                if (all.isEmpty()) getString(R.string.no_downloads) else getString(R.string.no_downloads_match)
-            },
-            if (all.isEmpty()) {
-                { getString(R.string.no_downloads_hint) }
-            } else {
-                null
-            },
-        )
     }
 
     private fun openEntry(t: DownloadTask) {

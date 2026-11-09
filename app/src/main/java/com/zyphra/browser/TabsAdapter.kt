@@ -39,13 +39,15 @@ data class TabItem(
 )
 
 /** Letter-badge colors for tab/history rows. */
+private val badgePalette = intArrayOf(
+    0xFF7C4DFF.toInt(), 0xFF00C853.toInt(), 0xFFFF6D00.toInt(),
+    0xFF2962FF.toInt(), 0xFFFF1744.toInt(), 0xFF00B8D4.toInt(),
+    0xFFC51162.toInt(), 0xFF64DD17.toInt(),
+)
+
+/** Letter-badge colors for tab/history rows. */
 fun badgeColorFor(key: String): Int {
-    val palette = intArrayOf(
-        0xFF7C4DFF.toInt(), 0xFF00C853.toInt(), 0xFFFF6D00.toInt(),
-        0xFF2962FF.toInt(), 0xFFFF1744.toInt(), 0xFF00B8D4.toInt(),
-        0xFFC51162.toInt(), 0xFF64DD17.toInt(),
-    )
-    return palette[(key.hashCode() and 0x7fffffff) % palette.size]
+    return badgePalette[(key.hashCode() and 0x7fffffff) % badgePalette.size]
 }
 
 fun badgeLetter(title: String, url: String): String {
@@ -73,6 +75,7 @@ private fun bindPreviewInto(view: android.widget.ImageView, bitmap: Bitmap?) {
         view.visibility = View.GONE
         return
     }
+    // Use setBitmap instead of setImageDrawable for better performance
     view.setImageBitmap(b)
     view.visibility = View.VISIBLE
 }

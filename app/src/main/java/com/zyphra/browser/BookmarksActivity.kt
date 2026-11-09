@@ -15,6 +15,10 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class BookmarksActivity : AppCompatActivity() {
 
@@ -76,26 +80,31 @@ class BookmarksActivity : AppCompatActivity() {
     }
 
     private fun reload() {
-        val all = store.all().let { entries ->
-            when (sortMode) {
-                1 -> entries.sortedBy { it.title.lowercase() }
-                2 -> entries.sortedWith(compareBy<Bookmark> { it.folder.lowercase() }.thenBy { it.title.lowercase() })
-                else -> entries
+        MainScope().launch {
+            val all = withContext(Dispatchers.Default) {
+                store.all().let { entries ->
+                    when (sortMode) {
+                        1 -> entries.sortedBy { it.title.lowercase() }
+                        2 -> entries.sortedWith(compareBy<Bookmark> { it.folder.lowercase() }.thenBy { it.title.lowercase() })
+                        else -> entries
+                    }
+                }
             }
-        }
-        val shown = if (query.isEmpty()) all
-        else all.filter { it.title.contains(query, true) || it.url.contains(query, true) || it.folder.contains(query, true) }
-        adapter.update(shown)
-        // The empty message is now a view rather than a Toast. The Toast was gone
-        // within seconds, repeated itself on every onResume, and said "no
-        // bookmarks" even when the user had plenty and the search simply matched
-        // nothing -- which is the one moment they most need telling apart.
-        emptyState.bind(
-            shown.size,
-            {
-                if (query.isEmpty()) getString(R.string.no_bookmarks)
-                else getString(R.string.no_bookmarks_match, query)
-            },
+            val shown = if (query.isEmpty()) all
+            else withContext(Dispatchers.Default) {
+                all.filter { it.title.contains(query, true) || it.url.contains(query, true) || it.folder.contains(query, true) }
+            }
+            adapter.update(shown)
+            // The empty message is now a view rather than a Toast. The Toast was gone
+            // within seconds, repeated itself on every onResume, and said "no
+            // bookmarks" even when the user had plenty and the search simply matched
+            // nothing -- which is the one moment they most need telling apart.
+            emptyState.bind(
+                shown.size,
+                {
+                    if (query.isEmpty()) getString(R.string.no_bookmarks)
+                    else getString(R.string.no_bookmarks_match, query)
+                },
             // Only the never-had-any case gets the hint; telling someone how to
             // add a bookmark while they are narrowing an existing list is noise.
             if (query.isEmpty()) {
