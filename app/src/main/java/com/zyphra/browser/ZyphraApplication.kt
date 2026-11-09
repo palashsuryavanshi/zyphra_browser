@@ -3,10 +3,9 @@ package com.zyphra.browser
 import android.app.Application
 import android.os.Build
 import android.os.StrictMode
-import androidx.work.Configuration
 import com.zyphra.browser.update.UpdateManager
 
-class ZyphraApplication : Application(), Configuration.Provider {
+class ZyphraApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         // Debug builds only, and only as a detector: any disk read or write on
@@ -33,7 +32,4 @@ class ZyphraApplication : Application(), Configuration.Provider {
         // Initialize update system (background periodic checks)
         UpdateManager.getInstance(this).initialize()
     }
-
-    override val workManagerConfiguration: Configuration
-        get() = Configuration.Builder().build()
 }
