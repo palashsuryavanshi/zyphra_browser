@@ -57,7 +57,8 @@ def fdroidVersionName = project.findProperty('fdroidVersionName')
 // variant still builds and produces -unsigned.apk. That is deliberate: nobody
 // should be locked out of building by a secret they do not have. The release
 // job in CI depends on this, since it has no key.
-def signingPropsFile = rootProject.file('keystore.properties')
+def keysDir = rootProject.file('keys')
+def signingPropsFile = new File(keysDir, 'keystore.properties')
 def signingProps = new Properties()
 def hasReleaseKey = signingPropsFile.exists()
 if (hasReleaseKey) {
@@ -147,7 +148,8 @@ android {
     signingConfigs {
         releaseSigning {
             if (hasReleaseKey) {
-                storeFile rootProject.file(signingProps['storeFile'])
+                // keystore.properties uses relative path ./zyphra-release.jks from the keys/ directory
+                storeFile new File(keysDir, signingProps['storeFile'])
                 storePassword signingProps['storePassword']
                 keyAlias signingProps['keyAlias']
                 keyPassword signingProps['keyPassword']
