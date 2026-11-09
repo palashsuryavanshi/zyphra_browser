@@ -81,12 +81,11 @@ android {
         applicationId 'com.zyphra.browser'
         minSdk 26
         targetSdk 34
-        // versionCode 1, versionName 1.0: the first release of the Zyphra
-        // project. The pre-rebrand builds shipped under a different
-        // applicationId and a different signing key, so they cannot update
-        // into this one regardless of the number here.
-        versionCode (currentVersionCode ? currentVersionCode as int : 1)
-        versionName (fdroidVersionName ?: '1.0')
+        // versionCode 200, versionName 2.0: v2.0 release with update system
+        // Per-arch version codes: 100 * %c + N (arm64-v8a=+1, armeabi-v7a=+2, x86_64=+3)
+        // This gives: arm64-v8a=201, armeabi-v7a=202, x86_64=203
+        versionCode (currentVersionCode ? currentVersionCode as int : 200)
+        versionName (fdroidVersionName ?: '2.0')
 
         // Needed for `connectedAndroidTest` to exist at all. UIAutomator rather
         // than Espresso for anything inside GeckoView, because the engine
@@ -97,7 +96,7 @@ android {
         // separate from versionName so About can show what this app is and what
         // engine it is based on without conflating the two.
         buildConfigField 'String', 'UPSTREAM_FIREFOX', '"156.0"'
-        buildConfigField 'String', 'ZYPHRA_RELEASE', '"1"'
+        buildConfigField 'String', 'ZYPHRA_RELEASE', '"2"'
         // True only in the F-Droid build. The UI reads it so the Passkeys
         // screen can state that passkeys are unavailable rather than imply
         // they work, which they cannot without Play Services.
@@ -185,6 +184,7 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
@@ -252,3 +252,8 @@ dependencies {
         }
     }
 }
+
+// APK output naming for release variants: zyphra-v{version}-{abi}.apk
+// e.g., zyphra-v2.0-arm64-v8a.apk
+// In AGP 9+, outputFileName is read-only, so we skip custom naming
+// The default naming will be used: app-{abi}-release.apk etc.
