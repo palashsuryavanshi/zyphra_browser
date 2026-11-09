@@ -19,6 +19,7 @@ captures/
 # its passwords. Losing this file and the key it names is unrecoverable, so back
 # both up somewhere you will still have them.
 keystore.properties
+keys/
 
 # OS
 .DS_Store
