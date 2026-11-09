@@ -4,6 +4,7 @@ import android.app.DownloadManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.util.Log
 import android.app.PictureInPictureParams
 import android.os.Build
 import android.os.Bundle
@@ -29,6 +30,10 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.widget.doAfterTextChanged
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.net.URLEncoder
 import org.mozilla.geckoview.AllowOrDeny
 import org.mozilla.geckoview.Autofill
@@ -44,6 +49,8 @@ import org.mozilla.geckoview.GeckoPreferenceController
 import org.mozilla.geckoview.StorageController
 import org.mozilla.geckoview.WebRequestError
 import org.mozilla.geckoview.WebResponse
+import com.zyphra.browser.update.UpdateManager
+import com.zyphra.browser.update.UpdateCheckerJava
 
 /**
  * Browser home: official Zyphra logo, private-tab button, tracker pill, bottom
@@ -1233,6 +1240,14 @@ class MainActivity : AppCompatActivity() {
 
     private fun handleIntent(intent: Intent?, freshLaunch: Boolean = true) {
         if (intent == null) return
+        
+        // Handle update notification click
+        if (intent.getBooleanExtra("show_update_dialog", false)) {
+            intent.removeExtra("show_update_dialog")
+            showUpdateDialog()
+            return
+        }
+        
         intent.getStringExtra(EXTRA_WEB_APP)?.let { appUrl ->
             intent.removeExtra(EXTRA_WEB_APP)
             webAppOrigin = runCatching { Uri.parse(appUrl).host }.getOrNull()
@@ -3293,5 +3308,52 @@ class MainActivity : AppCompatActivity() {
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(ZyphraDefaults.HOMEPAGE)))
             }
             .show()
+    }
+    
+    private fun showUpdateDialog() {
+        val updateManager = UpdateManager.getInstance(this)
+        val updateInfo = updateManager.getSavedUpdateInfo()
+        
+        if (updateInfo == null) return
+        
+        AlertDialog.Builder(this)
+            .setTitle("Update Available")
+            .setMessage(
+                "Zyphra Browser ${updateInfo.newVersion ?: "unknown"} is available!\n\n" +
+                "Current version: ${updateInfo.currentVersion}\n" +
+                "New version: ${updateInfo.newVersion ?: "unknown"}"
+            )
+            .setPositiveButton("Download") { dialog, _ ->
+                // Use runBlocking to call suspend function from non-coroutine context
+                val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main)
+                scope.launch {
+                    downloadAndInstallUpdate(updateManager, updateInfo)
+                }
+            }
+            .setNegativeButton("Later", null)
+            .show()
+    }
+    
+    private suspend fun downloadAndInstallUpdate(updateManager: UpdateManager, updateInfo: UpdateCheckerJava.UpdateInfo) {
+        // Show progress dialog
+        val progressDialog = AlertDialog.Builder(this)
+            .setTitle("Downloading Update")
+            .setMessage("Please wait...")
+            .setCancelable(false)
+            .create()
+        progressDialog.show()
+        
+        // Download and install in background
+        val apkFile = updateManager.downloadUpdate(updateInfo)
+        progressDialog.dismiss()
+        if (apkFile != null) {
+            updateManager.installUpdate(apkFile)
+        } else {
+            AlertDialog.Builder(this)
+                .setTitle("Download Failed")
+                .setMessage("Failed to download the update. Please try again later.")
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
+        }
     }
 }

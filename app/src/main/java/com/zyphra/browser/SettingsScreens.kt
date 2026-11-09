@@ -4,6 +4,9 @@ import android.content.Intent
 import android.os.Build
 import android.provider.Settings
 import androidx.appcompat.app.AlertDialog
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import org.mozilla.geckoview.GeckoSession.PermissionDelegate.ContentPermission
 
 /**
@@ -646,6 +649,7 @@ object SettingsScreens {
                 action(string(R.string.about_source), { activity_(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(SOURCE_URL))) }, SOURCE_URL) 
                 action(string(R.string.about_report), { reportProblem(it) }, string(R.string.about_report_sub), null) 
                 action(string(R.string.about_privacy_policy), { privacyPolicy(it) }, string(R.string.about_privacy_policy_sub), null) 
+                action(string(R.string.about_check_updates), { checkForUpdates(it) }, string(R.string.about_check_updates_sub), null) 
             }
         }
     }
@@ -903,6 +907,85 @@ object SettingsScreens {
             ctx.store.downloadFolder = downloadFolder
             ctx.toast(ctx.string(R.string.reset_done))
             ctx.refresh()
+        }
+    }
+
+    fun checkForUpdates(ctx: SettingsContext) {
+        val updateManager = com.zyphra.browser.update.UpdateManager.getInstance(ctx.activity)
+        
+        // Show checking dialog
+        val progressDialog = AlertDialog.Builder(ctx.activity)
+            .setTitle(R.string.about_check_updates)
+            .setMessage(R.string.update_checking)
+            .setCancelable(false)
+            .create()
+        progressDialog.show()
+        
+        // Check for updates in background using runBlocking to call suspend function
+        val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO)
+        scope.launch {
+            val updateInfo = kotlinx.coroutines.runBlocking {
+                updateManager.checkForUpdatesManually()
+            }
+            
+            ctx.activity.runOnUiThread {
+                progressDialog.dismiss()
+                
+                if (updateInfo != null) {
+                    // Update available - show update dialog
+                    AlertDialog.Builder(ctx.activity)
+                        .setTitle(R.string.update_available)
+                        .setMessage(
+                            "Zyphra Browser ${updateInfo.newVersion ?: "unknown"} is available!\n\n" +
+                            "Current version: ${updateInfo.currentVersion}\n" +
+                            "New version: ${updateInfo.newVersion ?: "unknown"}"
+                        )
+                        .setPositiveButton("Download") { _, _ ->
+                            val activityScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main)
+                            activityScope.launch {
+                                downloadAndInstallUpdate(ctx.activity, updateManager, updateInfo)
+                            }
+                        }
+                        .setNegativeButton("Later", null)
+                        .show()
+                } else {
+                    // No update available
+                    AlertDialog.Builder(ctx.activity)
+                        .setTitle(R.string.update_not_available)
+                        .setMessage("You are on the latest version (${BuildConfig.VERSION_NAME}).")
+                        .setPositiveButton(android.R.string.ok, null)
+                        .show()
+                }
+            }
+        }
+    }
+    
+    private fun downloadAndInstallUpdate(activity: android.app.Activity, updateManager: com.zyphra.browser.update.UpdateManager, updateInfo: com.zyphra.browser.update.UpdateCheckerJava.UpdateInfo) {
+        // Show progress dialog
+        val progressDialog = AlertDialog.Builder(activity)
+            .setTitle(R.string.update_downloading)
+            .setMessage("Please wait...")
+            .setCancelable(false)
+            .create()
+        progressDialog.show()
+        
+        val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO)
+        scope.launch {
+            val apkFile = kotlinx.coroutines.runBlocking {
+                updateManager.downloadUpdate(updateInfo)
+            }
+            activity.runOnUiThread {
+                progressDialog.dismiss()
+                if (apkFile != null) {
+                    updateManager.installUpdate(apkFile)
+                } else {
+                    AlertDialog.Builder(activity)
+                        .setTitle(R.string.update_download_failed)
+                        .setMessage("Failed to download the update. Please try again later.")
+                        .setPositiveButton(android.R.string.ok, null)
+                        .show()
+                }
+            }
         }
     }
 

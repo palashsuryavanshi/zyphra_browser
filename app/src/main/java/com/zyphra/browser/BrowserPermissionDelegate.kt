@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.app.ActivityCompat
 import org.mozilla.geckoview.GeckoResult
 import org.mozilla.geckoview.GeckoSession
 
@@ -167,7 +168,7 @@ class BrowserPermissionDelegate(
         
         // Check if any permission needs rationale
         val needsRationale = missing.any { permission ->
-            shouldShowRequestPermissionRationale(permission)
+            ActivityCompat.shouldShowRequestPermissionRationale(activity, permission)
         }
         
         if (needsRationale) {
@@ -181,7 +182,15 @@ class BrowserPermissionDelegate(
         permissions: Array<String>,
         callback: (Boolean) -> Unit,
     ) {
-        val permissionNames = permissions.map { permissionName(it) }.joinToString(", ")
+        val permissionNames = permissions.map { permission ->
+            when (permission) {
+                android.Manifest.permission.CAMERA -> activity.getString(R.string.permission_camera)
+                android.Manifest.permission.RECORD_AUDIO -> activity.getString(R.string.permission_microphone)
+                android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION -> activity.getString(R.string.permission_location)
+                android.Manifest.permission.POST_NOTIFICATIONS -> activity.getString(R.string.permission_notifications)
+                else -> permission
+            }
+        }.joinToString(", ")
         
         AlertDialog.Builder(activity)
             .setTitle("Permissions Required")
