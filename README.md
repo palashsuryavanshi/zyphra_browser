@@ -23,12 +23,12 @@ telemetry, no tracking, no accounts.
 
 ## Which build should I install?
 
-There is one: **[v1.0](https://github.com/palashsuryavanshi/zyphra_browser/releases/tag/v1.0)**,
-the first release, signed with the project's release key.
+There is one: **[v2.0](https://github.com/palashsuryavanshi/zyphra_browser/releases/tag/v2.0)**,
+the second release, signed with the project's release key.
 
 | | |
 |---|---|
-| Version | `1.0`, `versionCode` **1** |
+| Version | `2.0`, `versionCode` **200** |
 | Signed with | the project's **release key** — v2 and v3 signature schemes |
 | Android | 8.0 (API 26) or newer |
 
@@ -274,6 +274,15 @@ in-app updater. Nothing is sent anywhere except the sites you visit.
 - **HTTPS/certificate-safe external protocol handling** — `mailto:`, `tel:` and
   `intent:` go to another app; everything else goes to the download pipeline.
 
+### Update system (v2.0)
+
+- **Automatic background checks** — daily WorkManager job with network and battery constraints.
+- **Manual "Check for Updates"** in Settings → About with progress dialog.
+- **Version comparison dialog** showing current vs. available version with download button.
+- **Background APK download** via `DownloadManager` with notification progress.
+- **System installer launch** — hands off to the OS package installer for a seamless update.
+- **ABI-aware download** — fetches the correct split (`arm64-v8a`, `armeabi-v7a`, `x86_64`) from GitHub Releases.
+
 ### DRM
 
 - **Widevine L1** works. The GeckoView DRM path is retained and was verified in
@@ -406,16 +415,16 @@ a release-keyed one. CI produces unsigned artifacts and has no key.
 
 ## Download
 
-**[`v1.0` release page](https://github.com/palashsuryavanshi/zyphra_browser/releases/tag/v1.0)**
+**[`v2.0` release page](https://github.com/palashsuryavanshi/zyphra_browser/releases/tag/v2.0)**
 
 Pick the split matching your device:
 
 | File | ABI | Size |
 |---|---|---|
 | `app-arm64-v8a-release.apk` | modern phones — nearly all of them | ~85 MB |
-| `app-armeabi-v7a-release.apk` | 32-bit ARM phones | ~82 MB |
-| `app-x86_64-release.apk` | emulators and x86 tablets | ~89 MB |
-| `app-universal-release.apk` | **any of the above** — one file for every device | ~223 MB |
+| `app-armeabi-v7a-release.apk` | 32-bit ARM phones | ~83 MB |
+| `app-x86_64-release.apk` | emulators and x86 tablets | ~90 MB |
+| `app-universal-release.apk` | **any of the above** — one file for every device | ~224 MB |
 
 The universal APK is the fallback, not the default: it carries all three engines,
 so it is about two and a half times the download. Reach for it when you are not
@@ -433,14 +442,16 @@ SHA-256 of the assets in the current release:
 
 ```
 app-arm64-v8a-release.apk
-584d3a9e176e94cc124b10a89e9cf8bb8a0c3bd690b331fbef7a7c540903d2eb
+<updated on release>
 app-armeabi-v7a-release.apk
-9a890379df3ce46d23bf0b1eb47c1a80cda42a1de752c0cc5cf2f5e0af749aa1
+<updated on release>
 app-x86_64-release.apk
-10997a9ba773b4330a9ac20683837f6ed1e0089152fe2c1041832924cdf40962
+<updated on release>
 app-universal-release.apk
-320fadce9c57020e45744344c1b8b930219e6f46a6aeb05e3b11b5e88ab2e91e
+<updated on release>
 ```
+
+*SHA-256 checksums are published on the release page.*
 
 ### Verify what you downloaded
 
@@ -537,9 +548,9 @@ APKs are ~85 MB rather than ~364 MB.
 | Artifact | Devices | Size |
 |---|---|---|
 | `app-arm64-v8a-release.apk` | modern phones, minified + signed | ~85 MB |
-| `app-armeabi-v7a-release.apk` | 32-bit ARM, minified + signed | ~82 MB |
-| `app-x86_64-release.apk` | emulators, minified + signed | ~89 MB |
-| `app-universal-release.apk` | any device, minified + signed | ~223 MB |
+| `app-armeabi-v7a-release.apk` | 32-bit ARM, minified + signed | ~83 MB |
+| `app-x86_64-release.apk` | emulators, minified + signed | ~90 MB |
+| `app-universal-release.apk` | any device, minified + signed | ~224 MB |
 | `app-arm64-v8a-debug.apk` | modern phones, unminified | ~97 MB |
 | `app-armeabi-v7a-debug.apk` | 32-bit ARM, unminified | ~92 MB |
 | `app-x86_64-debug.apk` | emulators, unminified | ~103 MB |
@@ -736,6 +747,9 @@ anything that matters. As of this commit it includes, among others:
   rather than shipped unexercised.
 - Per-site permission prompts reappear once per new document rather than being
   rooted to the origin.
+- **The update checker has not been exercised end to end against a real GitHub
+  release** — the GitHub API calls are structured correctly but the full
+  check → download → install flow has not been driven on hardware.
 
 Two A/B performance measurements on startup are recorded in the git history,
 including one that **failed to show a speedup** — the effect was below device
@@ -767,9 +781,9 @@ meant to be checkable.
 - **Package name:** `com.zyphra.browser`. The application id and the
   release signing key are bound to each other; see
   [Application identity](TESTING.md#application-identity).
-- **Versions:** the current release is `1.0` (`versionCode 1`). The engine base
+- **Versions:** the current release is `2.0` (`versionCode 200`). The engine base
   is shown separately in Settings → About as upstream Firefox `156.0`,
-  build release `1`.
+  build release `2`.
 - **Restart to apply:** engine privacy settings — cookies, HTTPS-only, GPC, DoH,
   JavaScript and Safe Browsing — are fixed when the runtime is created, so
   changing them in Settings takes effect on the next launch.
