@@ -39,6 +39,7 @@
     <string name="extensions_sub">Install add-ons from Mozilla AMO</string>
     <string name="extensions_available">Available to install</string>
     <string name="extensions_installed">Installed</string>
+    <string name="extensions_no_installed">No extensions installed yet</string>
     <string name="install_addon">Install %1$s?</string>
     <string name="extensions_unsupported">Extensions are not supported in this build.</string>
     <string name="history">History</string>
@@ -573,6 +574,14 @@
     <string name="about_report_sub">Open an issue</string>
     <string name="about_privacy_policy">Privacy policy</string>
     <string name="about_privacy_policy_sub">What leaves this device</string>
+    <string name="about_check_updates">Check for updates</string>
+    <string name="about_check_updates_sub">Check GitHub for a new version</string>
+    <string name="update_available">Update available</string>
+    <string name="update_not_available">You are on the latest version</string>
+    <string name="update_checking">Checking for updates…</string>
+    <string name="update_check_failed">Failed to check for updates</string>
+    <string name="update_downloading">Downloading update…</string>
+    <string name="update_download_failed">Failed to download update</string>
     <string name="licence_app">Zyphra Browser</string>
     <string name="licence_note">GeckoView and its dependencies are licensed by Mozilla and the Apache and Kotlin projects. No analytics, advertising or crash-reporting SDK is present in this build.</string>
     <string name="privacy_policy_body">Nothing leaves this device unless you ask it to.\n\nSearch suggestions are sent to the search provider you chose, and only while suggestions are on. The DNS provider you choose can see the names you look up. Extension updates are fetched from the add-on source you added them from.\n\nThere is no account, no sync, no analytics and no crash upload. Crash reports are written to this device only, and you can read them in Diagnostics.</string>

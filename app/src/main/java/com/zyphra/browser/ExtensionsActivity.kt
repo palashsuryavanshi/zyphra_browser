@@ -5,13 +5,16 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.ImageButton
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.tabs.TabLayout
 import org.mozilla.geckoview.GeckoResult
 import org.mozilla.geckoview.WebExtension
 import org.mozilla.geckoview.WebExtensionController
@@ -53,8 +56,9 @@ class ExtensionsActivity : AppCompatActivity() {
 
         adapter = ExtensionsAdapter(
             emptyList(),
-            onRemove = { uninstall(it) },
-            onManage = { showManageDialog(it) },
+            onToggleEnable = { setEnabled(it, !it.enabled) },
+            onShowSettings = { openExtensionSettings(it) },
+            onUninstallExt = { uninstall(it) },
         )
         addonsAdapter = AddonsAdapter(emptyList())
         findViewById<RecyclerView>(R.id.extensions_available_list).apply {
@@ -66,6 +70,7 @@ class ExtensionsActivity : AppCompatActivity() {
             adapter = this@ExtensionsActivity.adapter
         }
         findViewById<View>(R.id.extensions_back).setOnClickListener { finish() }
+        setupTabs()
         wireDelegates()
         reload()
     }
@@ -73,6 +78,31 @@ class ExtensionsActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         reload()
+    }
+
+    /**
+     * Two tabs: installed add-ons first, because that is where management
+     * lives, and available add-ons second. The installed list always exists
+     * (with a plain empty state when nothing is installed), so the user can
+     * manage add-ons without scrolling through the install list.
+     */
+    private fun setupTabs() {
+        val tabs = findViewById<TabLayout>(R.id.extensions_tabs)
+        val installed = findViewById<View>(R.id.extensions_installed_container)
+        val available = findViewById<View>(R.id.extensions_available_container)
+        tabs.addTab(tabs.newTab().setText(R.string.extensions_installed))
+        tabs.addTab(tabs.newTab().setText(R.string.extensions_available))
+        tabs.getTabAt(0)?.select()
+        tabs.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
+            override fun onTabSelected(tab: TabLayout.Tab) {
+                val showInstalled = tab.position == 0
+                installed.visibility = if (showInstalled) View.VISIBLE else View.GONE
+                available.visibility = if (showInstalled) View.GONE else View.VISIBLE
+            }
+
+            override fun onTabUnselected(tab: TabLayout.Tab) {}
+            override fun onTabReselected(tab: TabLayout.Tab) {}
+        })
     }
 
     private fun controller(): WebExtensionController? {
@@ -361,8 +391,11 @@ class ExtensionsActivity : AppCompatActivity() {
                                 )
                             },
                         )
-                        // The installed header is meaningless with nothing under it.
-                        findViewById<View>(R.id.extensions_installed_header).visibility =
+                        // With nothing installed, show the plain empty state
+                        // instead of a list with no rows.
+                        findViewById<View>(R.id.extensions_installed_empty).visibility =
+                            if (installed.isEmpty()) View.VISIBLE else View.GONE
+                        findViewById<View>(R.id.extensions_list).visibility =
                             if (installed.isEmpty()) View.GONE else View.VISIBLE
                     }
                 },
@@ -509,14 +542,20 @@ class ExtensionsActivity : AppCompatActivity() {
 
     class ExtensionsAdapter(
         private var items: List<ExtInfo>,
-        private val onRemove: (ExtInfo) -> Unit,
-        private val onManage: (ExtInfo) -> Unit,
+        private val onToggleEnable: (ExtInfo) -> Unit,
+        private val onShowSettings: (ExtInfo) -> Unit,
+        private val onUninstallExt: (ExtInfo) -> Unit,
+        private val onRemove: (ExtInfo) -> Unit = {},
     ) : RecyclerView.Adapter<ExtensionsAdapter.VH>() {
 
         class VH(v: View) : RecyclerView.ViewHolder(v) {
             val name: TextView = v.findViewById(R.id.ext_name)
             val sub: TextView = v.findViewById(R.id.ext_sub)
             val remove: ImageButton = v.findViewById(R.id.ext_remove)
+            val actionsRow: LinearLayout = v.findViewById(R.id.ext_actions_row)
+            val toggle: Button = v.findViewById(R.id.ext_toggle)
+            val settings: Button = v.findViewById(R.id.ext_settings)
+            val uninstall: Button = v.findViewById(R.id.ext_uninstall)
         }
 
         fun update(items: List<ExtInfo>) {
@@ -543,8 +582,17 @@ class ExtensionsActivity : AppCompatActivity() {
             // enable/disable, settings and uninstall all live behind it. The
             // trash keeps its own listener, which takes precedence over the
             // row's on a child view.
-            h.itemView.setOnClickListener { onManage(e) }
-            h.remove.setOnClickListener { onRemove(e) }
+            h.actionsRow.visibility = android.view.View.VISIBLE
+            h.remove.visibility = android.view.View.GONE
+            h.toggle.text = ctx.getString(if (e.enabled) R.string.ext_disable else R.string.ext_enable)
+            h.toggle.setOnClickListener { onToggleEnable(e) }
+            if (e.optionsUrl != null) {
+                h.settings.visibility = android.view.View.VISIBLE
+                h.settings.setOnClickListener { onShowSettings(e) }
+            } else {
+                h.settings.visibility = android.view.View.GONE
+            }
+            h.uninstall.setOnClickListener { onUninstallExt(e) }
         }
 
         override fun getItemCount(): Int = items.size
@@ -563,6 +611,7 @@ class ExtensionsActivity : AppCompatActivity() {
             val name: TextView = v.findViewById(R.id.ext_name)
             val sub: TextView = v.findViewById(R.id.ext_sub)
             val action: ImageButton = v.findViewById(R.id.ext_remove)
+            val actionsRow: LinearLayout = v.findViewById(R.id.ext_actions_row)
         }
 
         fun update(items: List<AddonRow>) {
@@ -578,6 +627,7 @@ class ExtensionsActivity : AppCompatActivity() {
         override fun onBindViewHolder(h: VH, position: Int) {
             val row = items[position]
             val ctx = h.itemView.context
+            h.actionsRow.visibility = android.view.View.GONE
             h.name.text = row.addon.name
             h.sub.text = row.addon.summary
             h.sub.visibility = View.VISIBLE

@@ -13,6 +13,7 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.drawable.Icon
 import android.media.AudioAttributes
+import android.util.Log
 import android.media.AudioDeviceCallback
 import android.media.AudioDeviceInfo
 import android.media.AudioFocusRequest
@@ -515,6 +516,13 @@ class BrowserMediaController(private val activity: MainActivity) {
 /** Handles the play/pause/stop buttons on the media notification. */
 class MediaActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context?, intent: Intent?) {
-        BrowserMediaController.dispatch(intent?.action)
+        // Verify caller authorization before executing media actions
+        if (context != null && intent?.action != null) {
+            if (!CallerVerifier.isCallerAuthorized(context)) {
+                Log.w("MediaActionReceiver", "Unauthorized media action attempt: ${intent.action}")
+                return
+            }
+            BrowserMediaController.dispatch(intent.action)
+        }
     }
 }

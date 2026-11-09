@@ -1,7 +1,9 @@
 package com.zyphra.browser
 
 import android.app.Application
+import android.os.Build
 import android.os.StrictMode
+import com.zyphra.browser.update.UpdateManager
 
 class ZyphraApplication : Application() {
     override fun onCreate() {
@@ -26,5 +28,8 @@ class ZyphraApplication : Application() {
         BrowserTheme.apply(this)
         DownloadEngine.init(this)
         DownloadService.ensureChannel(this)
+        
+        // Initialize update system (background periodic checks)
+        UpdateManager.getInstance(this).initialize()
     }
 }

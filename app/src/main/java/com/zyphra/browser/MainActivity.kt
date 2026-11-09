@@ -4,6 +4,7 @@ import android.app.DownloadManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.util.Log
 import android.app.PictureInPictureParams
 import android.os.Build
 import android.os.Bundle
@@ -29,6 +30,10 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.widget.doAfterTextChanged
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.net.URLEncoder
 import org.mozilla.geckoview.AllowOrDeny
 import org.mozilla.geckoview.Autofill
@@ -44,6 +49,8 @@ import org.mozilla.geckoview.GeckoPreferenceController
 import org.mozilla.geckoview.StorageController
 import org.mozilla.geckoview.WebRequestError
 import org.mozilla.geckoview.WebResponse
+import com.zyphra.browser.update.UpdateManager
+import com.zyphra.browser.update.UpdateCheckerJava
 
 /**
  * Browser home: official Zyphra logo, private-tab button, tracker pill, bottom
@@ -514,6 +521,12 @@ class MainActivity : AppCompatActivity() {
         ): GeckoResult<AllowOrDeny> {
             val uri = request.uri
             val scheme = runCatching { Uri.parse(uri).scheme?.lowercase() }.getOrNull()
+            // An extension's own page is ordinary engine content, not an
+            // Android intent target. It opens in a Gecko session like any web
+            // page, and it must never be handed to an external app.
+            if (scheme == "moz-extension" || uri.startsWith("moz-extension:", ignoreCase = true)) {
+                return GeckoResult.fromValue(AllowOrDeny.ALLOW)
+            }
             if (scheme == "http" || scheme == "https" || scheme == "about" || scheme == "data" ||
                 scheme == "file" || scheme == "blob" || scheme == "content" || scheme == "filesystem"
             ) {
@@ -645,6 +658,7 @@ class MainActivity : AppCompatActivity() {
             tab.isError = false
             tab.isLoading = true
             tab.isHome = false
+            updateBadge()
             if (!tab.isPrivate) {
                 FaviconCache.load(url) {
                     if (!isFinishing && !isDestroyed && tabFor(session)?.url == url) {
@@ -1226,6 +1240,14 @@ class MainActivity : AppCompatActivity() {
 
     private fun handleIntent(intent: Intent?, freshLaunch: Boolean = true) {
         if (intent == null) return
+        
+        // Handle update notification click
+        if (intent.getBooleanExtra("show_update_dialog", false)) {
+            intent.removeExtra("show_update_dialog")
+            showUpdateDialog()
+            return
+        }
+        
         intent.getStringExtra(EXTRA_WEB_APP)?.let { appUrl ->
             intent.removeExtra(EXTRA_WEB_APP)
             webAppOrigin = runCatching { Uri.parse(appUrl).host }.getOrNull()
@@ -2106,6 +2128,7 @@ class MainActivity : AppCompatActivity() {
         if (text.startsWith("data:")) {
             tab.session.loadUri(text)
             tab.isHome = false
+            updateBadge()
             tab.isError = false
             homeOverlay.visibility = View.GONE
             geckoView.visibility = View.VISIBLE
@@ -2141,6 +2164,7 @@ class MainActivity : AppCompatActivity() {
         }
         tab.isHome = false
         tab.isError = false
+        updateBadge()
         homeOverlay.visibility = View.GONE
         geckoView.visibility = View.VISIBLE
         hideSuggestions()
@@ -2151,6 +2175,7 @@ class MainActivity : AppCompatActivity() {
         val tab = activeTab() ?: return false
         val engine = store.engineFor(tab.isPrivate)
         tab.isHome = false
+        updateBadge()
         tab.isError = false
         homeOverlay.visibility = View.GONE
         geckoView.visibility = View.VISIBLE
@@ -2162,6 +2187,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun showHomeState(tab: Tab) {
         tab.isHome = true
+        updateBadge()
         tab.isError = false
         tab.url = ""
         tab.title = ""
@@ -2246,6 +2272,7 @@ class MainActivity : AppCompatActivity() {
         val current = activeTab()
         val tab = newTab(isPrivate = current?.isPrivate == true, select = select)
         tab.isHome = false
+        updateBadge()
         if (select) {
             homeOverlay.visibility = View.GONE
             geckoView.visibility = View.VISIBLE
@@ -2544,10 +2571,26 @@ class MainActivity : AppCompatActivity() {
      * normal VIEW action and an http(s) target still opens.
      */
     private fun openExternalUri(uri: String) {
+        // An extension page is engine content. It is not a link to hand to
+        // another app even if "Open links in apps" is on.
+        if (uri.startsWith("moz-extension:", ignoreCase = true)) return
         if (!store.openLinksInApps) return
         // An empty or unparsable URI would launch a content-less VIEW intent and
         // fail with an opaque system error.
         if (uri.isBlank() || Uri.parse(uri).scheme.isNullOrBlank()) return
+        
+        // Validate URI scheme security
+        val scheme = Uri.parse(uri).scheme?.lowercase()
+        val allowedSchemes = setOf("http", "https", "mailto", "tel", "sms", "smsto", 
+                                 "geo", "market", "news", "sip", "sips", "webcal", 
+                                 "im", "irc", "ircs", "xmpp")
+        
+        if (scheme != null && scheme !in allowedSchemes) {
+            Log.w("MainActivity", "Blocked unsafe URI scheme: $scheme in $uri")
+            Toast.makeText(this, getString(R.string.not_available), Toast.LENGTH_SHORT).show()
+            return
+        }
+        
         val intent = try {
             if (uri.startsWith("intent:", ignoreCase = true)) {
                 hardenWebIntent(Intent.parseUri(uri, Intent.URI_INTENT_SCHEME))
@@ -3265,5 +3308,52 @@ class MainActivity : AppCompatActivity() {
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(ZyphraDefaults.HOMEPAGE)))
             }
             .show()
+    }
+    
+    private fun showUpdateDialog() {
+        val updateManager = UpdateManager.getInstance(this)
+        val updateInfo = updateManager.getSavedUpdateInfo()
+        
+        if (updateInfo == null) return
+        
+        AlertDialog.Builder(this)
+            .setTitle("Update Available")
+            .setMessage(
+                "Zyphra Browser ${updateInfo.newVersion ?: "unknown"} is available!\n\n" +
+                "Current version: ${updateInfo.currentVersion}\n" +
+                "New version: ${updateInfo.newVersion ?: "unknown"}"
+            )
+            .setPositiveButton("Download") { dialog, _ ->
+                // Use runBlocking to call suspend function from non-coroutine context
+                val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main)
+                scope.launch {
+                    downloadAndInstallUpdate(updateManager, updateInfo)
+                }
+            }
+            .setNegativeButton("Later", null)
+            .show()
+    }
+    
+    private suspend fun downloadAndInstallUpdate(updateManager: UpdateManager, updateInfo: UpdateCheckerJava.UpdateInfo) {
+        // Show progress dialog
+        val progressDialog = AlertDialog.Builder(this)
+            .setTitle("Downloading Update")
+            .setMessage("Please wait...")
+            .setCancelable(false)
+            .create()
+        progressDialog.show()
+        
+        // Download and install in background
+        val apkFile = updateManager.downloadUpdate(updateInfo)
+        progressDialog.dismiss()
+        if (apkFile != null) {
+            updateManager.installUpdate(apkFile)
+        } else {
+            AlertDialog.Builder(this)
+                .setTitle("Download Failed")
+                .setMessage("Failed to download the update. Please try again later.")
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
+        }
     }
 }

@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.app.ActivityCompat
 import org.mozilla.geckoview.GeckoResult
 import org.mozilla.geckoview.GeckoSession
 
@@ -151,6 +152,57 @@ class BrowserPermissionDelegate(
             return
         }
         launchAndroidPermissions(missing, callback)
+    }
+
+    private fun ensureAndroidPermissionsWithRationale(
+        permissions: Array<String>,
+        callback: (Boolean) -> Unit,
+    ) {
+        val missing = permissions.filter {
+            ContextCompat.checkSelfPermission(activity, it) != PackageManager.PERMISSION_GRANTED
+        }.distinct().toTypedArray()
+        if (missing.isEmpty()) {
+            callback(true)
+            return
+        }
+        
+        // Check if any permission needs rationale
+        val needsRationale = missing.any { permission ->
+            ActivityCompat.shouldShowRequestPermissionRationale(activity, permission)
+        }
+        
+        if (needsRationale) {
+            showRationaleDialogForPermissions(missing, callback)
+        } else {
+            launchAndroidPermissions(missing, callback)
+        }
+    }
+
+    private fun showRationaleDialogForPermissions(
+        permissions: Array<String>,
+        callback: (Boolean) -> Unit,
+    ) {
+        val permissionNames = permissions.map { permission ->
+            when (permission) {
+                android.Manifest.permission.CAMERA -> activity.getString(R.string.permission_camera)
+                android.Manifest.permission.RECORD_AUDIO -> activity.getString(R.string.permission_microphone)
+                android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION -> activity.getString(R.string.permission_location)
+                android.Manifest.permission.POST_NOTIFICATIONS -> activity.getString(R.string.permission_notifications)
+                else -> permission
+            }
+        }.joinToString(", ")
+        
+        AlertDialog.Builder(activity)
+            .setTitle("Permissions Required")
+            .setMessage("These permissions are needed to continue: $permissionNames")
+            .setPositiveButton("Continue") { _, _ ->
+                launchAndroidPermissions(permissions, callback)
+            }
+            .setNegativeButton("Cancel", null)
+            .setOnDismissListener {
+                callback(false)
+            }
+            .show()
     }
 
     private fun permissionName(permission: Int): String = when (permission) {

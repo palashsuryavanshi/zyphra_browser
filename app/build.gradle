@@ -207,6 +207,13 @@ dependencies {
     // GeckoView 147: newest stable hopefully still targeting compileSdk ≤37.0
     // (154/155 demand 37.1, which has no stable platform).
     implementation 'org.mozilla.geckoview:geckoview:147.0.20260212191108'
+    // GitHub API integration for update checking
+    implementation 'com.squareup.retrofit2:retrofit:2.9.0'
+    implementation 'com.squareup.retrofit2:converter-gson:2.9.0'
+    // WorkManager for background update checks
+    implementation 'androidx.work:work-runtime-ktx:2.9.0'
+    // Lifecycle for lifecycleScope
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.6.2'
 
     // Unit tests only. These cover pure decision logic -- download risk
     // classification and filename sanitisation -- which is security relevant
@@ -242,11 +249,6 @@ dependencies {
             // classes were gone from the APK.
             exclude group: 'com.google.android.gms'
             exclude group: 'com.google.firebase'
-        }
-        resolutionStrategy {
-            force 'org.jetbrains.kotlin:kotlin-stdlib:2.2.20'
-            force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.2.20'
-            force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.2.20'
         }
     }
 }

@@ -2,6 +2,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Custom signature-level permission for internal component protection -->
+    <permission
+        android:name="com.zyphra.browser.permission.INTERNAL_COMMUNICATION"
+        android:protectionLevel="signature" />
+    
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CAMERA" />
@@ -84,11 +89,13 @@
 
         <receiver
             android:name=".PrivateBrowsingDismissReceiver"
-            android:exported="false" />
+            android:exported="false"
+            android:permission="com.zyphra.browser.permission.INTERNAL_COMMUNICATION" />
 
         <receiver
             android:name=".MediaActionReceiver"
-            android:exported="false">
+            android:exported="false"
+            android:permission="com.zyphra.browser.permission.INTERNAL_COMMUNICATION">
             <intent-filter>
                 <action android:name="com.zyphra.browser.MEDIA_PLAY" />
                 <action android:name="com.zyphra.browser.MEDIA_PAUSE" />
@@ -98,12 +105,14 @@
         <service
             android:name=".BrowserMediaService"
             android:exported="false"
-            android:foregroundServiceType="mediaPlayback" />
+            android:foregroundServiceType="mediaPlayback"
+            android:permission="com.zyphra.browser.permission.INTERNAL_COMMUNICATION" />
 
         <service
             android:name=".GeckoCrashService"
             android:exported="false"
-            android:process=":gecko_crash">
+            android:process=":gecko_crash"
+            android:permission="com.zyphra.browser.permission.INTERNAL_COMMUNICATION">
             <intent-filter>
                 <action android:name="org.mozilla.gecko.ACTION_CRASHED" />
             </intent-filter>
@@ -112,13 +121,15 @@
         <service
             android:name=".DownloadService"
             android:exported="false"
-            android:foregroundServiceType="dataSync" />
+            android:foregroundServiceType="dataSync"
+            android:permission="com.zyphra.browser.permission.INTERNAL_COMMUNICATION" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
             android:exported="false"
             android:grantUriPermissions="true">
+            <grant-uri-permission android:pathPrefix="/downloads/" />
             <meta-data
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
