@@ -3323,37 +3323,11 @@ class MainActivity : AppCompatActivity() {
                 "Current version: ${updateInfo.currentVersion}\n" +
                 "New version: ${updateInfo.newVersion ?: "unknown"}"
             )
-            .setPositiveButton("Download") { dialog, _ ->
-                // Use runBlocking to call suspend function from non-coroutine context
-                val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main)
-                scope.launch {
-                    downloadAndInstallUpdate(updateManager, updateInfo)
-                }
+            .setPositiveButton("Download") { _, _ ->
+                val downloadId = updateManager.enqueueUpdateDownload(updateInfo)
+                android.widget.Toast.makeText(this, "Update download started (ID: ${downloadId.take(8)}...). Check Downloads screen for progress.", android.widget.Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton("Later", null)
             .show()
-    }
-    
-    private suspend fun downloadAndInstallUpdate(updateManager: UpdateManager, updateInfo: UpdateCheckerJava.UpdateInfo) {
-        // Show progress dialog
-        val progressDialog = AlertDialog.Builder(this)
-            .setTitle("Downloading Update")
-            .setMessage("Please wait...")
-            .setCancelable(false)
-            .create()
-        progressDialog.show()
-        
-        // Download and install in background
-        val apkFile = updateManager.downloadUpdate(updateInfo)
-        progressDialog.dismiss()
-        if (apkFile != null) {
-            updateManager.installUpdate(apkFile)
-        } else {
-            AlertDialog.Builder(this)
-                .setTitle("Download Failed")
-                .setMessage("Failed to download the update. Please try again later.")
-                .setPositiveButton(android.R.string.ok, null)
-                .show()
-        }
     }
 }

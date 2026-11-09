@@ -961,32 +961,8 @@ object SettingsScreens {
     }
     
     private fun downloadAndInstallUpdate(activity: android.app.Activity, updateManager: com.zyphra.browser.update.UpdateManager, updateInfo: com.zyphra.browser.update.UpdateCheckerJava.UpdateInfo) {
-        // Show progress dialog
-        val progressDialog = AlertDialog.Builder(activity)
-            .setTitle(R.string.update_downloading)
-            .setMessage("Please wait...")
-            .setCancelable(false)
-            .create()
-        progressDialog.show()
-        
-        val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO)
-        scope.launch {
-            val apkFile = kotlinx.coroutines.runBlocking {
-                updateManager.downloadUpdate(updateInfo)
-            }
-            activity.runOnUiThread {
-                progressDialog.dismiss()
-                if (apkFile != null) {
-                    updateManager.installUpdate(apkFile)
-                } else {
-                    AlertDialog.Builder(activity)
-                        .setTitle(R.string.update_download_failed)
-                        .setMessage("Failed to download the update. Please try again later.")
-                        .setPositiveButton(android.R.string.ok, null)
-                        .show()
-                }
-            }
-        }
+        val downloadId = updateManager.enqueueUpdateDownload(updateInfo)
+        android.widget.Toast.makeText(activity, "Update download started (ID: ${downloadId.take(8)}...). Check Downloads screen for progress.", android.widget.Toast.LENGTH_SHORT).show()
     }
 
     fun reportProblem(ctx: SettingsContext) {

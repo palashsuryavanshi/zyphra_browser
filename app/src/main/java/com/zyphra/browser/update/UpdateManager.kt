@@ -11,12 +11,11 @@ import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.work.WorkManager
+import com.zyphra.browser.DownloadEngine
 import com.zyphra.browser.MainActivity
 import com.zyphra.browser.R
 import com.google.gson.Gson
 import java.io.File
-import java.io.FileOutputStream
-import java.net.URL
 import java.util.concurrent.TimeUnit
 
 /**
@@ -136,43 +135,25 @@ class UpdateManager private constructor(private val context: Context) {
     }
     
     /**
-     * Downloads the update APK
+     * Enqueues the update APK download using the browser's DownloadEngine.
+     * The download will appear in the Downloads screen with progress.
+     * Returns the download task ID so progress can be tracked.
      */
-    suspend fun downloadUpdate(updateInfo: UpdateCheckerJava.UpdateInfo): File? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-        try {
-            val url = URL(updateInfo.asset.browser_download_url)
-            val connection = url.openConnection()
-            val fileLength = connection.contentLengthLong
-            
-            val tempFile = File(context.cacheDir, "update_${System.currentTimeMillis()}.apk")
-            val input = connection.getInputStream()
-            val output = FileOutputStream(tempFile)
-            
-            val buffer = ByteArray(8192)
-            var totalBytesRead = 0L
-            var bytesRead: Int
-            
-            while (input.read(buffer).also { bytesRead = it } != -1) {
-                output.write(buffer, 0, bytesRead)
-                totalBytesRead += bytesRead
-                
-                // Update progress if needed
-                val progress = (totalBytesRead * 100 / fileLength).toInt()
-                Log.d(TAG, "Download progress: $progress%")
-            }
-            
-            output.close()
-            input.close()
-            
-            Log.d(TAG, "Update downloaded to: ${tempFile.absolutePath}")
-            tempFile
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to download update", e)
-            null
-        }
+    fun enqueueUpdateDownload(updateInfo: UpdateCheckerJava.UpdateInfo): String {
+        val fileName = "zyphra-browser-${updateInfo.newVersion ?: "update"}.apk"
+        val downloadId = DownloadEngine.enqueue(
+            url = updateInfo.asset.browser_download_url,
+            name = fileName,
+            mime = "application/vnd.android.package-archive",
+            folder = "Zyphra Browser",
+            headers = emptyMap(),
+            userAgent = "Zyphra Browser Update"
+        ).id
+        
+        Log.d(TAG, "Update download enqueued with ID: $downloadId")
+        return downloadId
     }
-    
+
     /**
      * Installs the downloaded APK
      */
