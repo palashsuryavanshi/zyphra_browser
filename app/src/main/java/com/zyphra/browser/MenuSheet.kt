@@ -22,6 +22,7 @@ class MenuSheet : BottomSheetDialogFragment() {
     var onQuit: () -> Unit = {}
     var onCompatibility: () -> Unit = {}
     var onPrivacyReport: () -> Unit = {}
+    var onExtensions: () -> Unit = {}
     var canInstallPwa: Boolean = false
     var onInstallPwa: () -> Unit = {}
 
@@ -47,10 +48,10 @@ class MenuSheet : BottomSheetDialogFragment() {
     ): View = inflater.inflate(R.layout.sheet_menu, container, false)
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        view.findViewById<View>(R.id.row_extensions).visibility = View.GONE
         view.findViewById<View>(R.id.tile_history).setOnClickListener { dismiss(); onHistory() }
         view.findViewById<View>(R.id.tile_bookmarks).setOnClickListener { dismiss(); onBookmarks() }
         view.findViewById<View>(R.id.tile_downloads).setOnClickListener { dismiss(); onDownloads() }
+        view.findViewById<View>(R.id.row_extensions).setOnClickListener { dismiss(); onExtensions() }
         view.findViewById<View>(R.id.tile_passwords).setOnClickListener {
             dismiss()
             context?.startActivity(Intent(context, PasswordsActivity::class.java))

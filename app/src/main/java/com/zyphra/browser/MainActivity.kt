@@ -2815,6 +2815,7 @@ class MainActivity : AppCompatActivity() {
             onHistory = { startActivity(Intent(this@MainActivity, HistoryActivity::class.java)) }
             onBookmarks = { startActivity(Intent(this@MainActivity, BookmarksActivity::class.java)) }
             onDownloads = { startActivity(Intent(this@MainActivity, DownloadsActivity::class.java)) }
+            onExtensions = { startActivity(Intent(this@MainActivity, ExtensionsActivity::class.java)) }
             onSettings = { startActivity(Intent(this@MainActivity, SettingsActivity::class.java)) }
             // The compatibility page is about *this* site, so the active URL
             // travels with the intent. Without it the page could only offer a
