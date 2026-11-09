@@ -12,10 +12,6 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.MainScope
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.util.Calendar
 
 class HistoryActivity : AppCompatActivity() {
@@ -23,10 +19,6 @@ class HistoryActivity : AppCompatActivity() {
     private lateinit var store: HistoryStore
     private lateinit var adapter: HistoryAdapter
     private var query = ""
-    private var currentPage = 0
-    private val pageSize = 50 // Load 50 items at a time
-    private var isLoading = false
-    private var hasMoreData = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -52,22 +44,6 @@ class HistoryActivity : AppCompatActivity() {
         findViewById<RecyclerView>(R.id.history_list).apply {
             layoutManager = LinearLayoutManager(this@HistoryActivity)
             adapter = this@HistoryActivity.adapter
-            addOnScrollListener(object : RecyclerView.OnScrollListener() {
-                override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
-                    super.onScrolled(recyclerView, dx, dy)
-                    val layoutManager = layoutManager as LinearLayoutManager
-                    val visibleItemCount = layoutManager.childCount
-                    val totalItemCount = layoutManager.itemCount
-                    val firstVisibleItemPosition = layoutManager.findFirstVisibleItemPosition()
-                    
-                    if (!isLoading && hasMoreData && 
-                        (visibleItemCount + firstVisibleItemPosition) >= totalItemCount - 5 &&
-                        firstVisibleItemPosition >= 0) {
-                        loadMoreHistory()
-                    }
-                }
-            })
-        }
         }
         findViewById<View>(R.id.history_back).setOnClickListener { finish() }
         findViewById<View>(R.id.history_search).setOnClickListener { askQuery() }
@@ -81,40 +57,11 @@ class HistoryActivity : AppCompatActivity() {
     }
 
     private fun reload() {
-        MainScope().launch {
-            currentPage = 0
-            hasMoreData = true
-            loadHistoryPage()
+        val all = store.all()
+        val filtered = if (query.isEmpty()) all else all.filter {
+            it.title.contains(query, true) || it.url.contains(query, true)
         }
-    }
-    
-    private fun loadMoreHistory() {
-        if (isLoading || !hasMoreData) return
-        isLoading = true
-        currentPage++
-        loadHistoryPage()
-    }
-    
-    private fun loadHistoryPage() {
-        MainScope().launch {
-            val all = store.all()
-            val filtered = if (query.isEmpty()) all else withContext(Dispatchers.Default) {
-                all.filter {
-                    it.title.contains(query, true) || it.url.contains(query, true)
-                }
-            }
-            
-            val paginatedData = filtered.take((currentPage + 1) * pageSize)
-            val groupedData = grouped(paginatedData, filtered.isEmpty())
-            
-            adapter.update(groupedData)
-            isLoading = false
-            
-            // Check if we have more data to load
-            if (paginatedData.size >= filtered.size) {
-                hasMoreData = false
-            }
-        }
+        adapter.update(grouped(filtered, all.isEmpty()))
     }
 
     /**

@@ -921,13 +921,8 @@ object SettingsScreens {
             .create()
         progressDialog.show()
         
-        // Check for updates in background using runBlocking to call suspend function
-        val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO)
-        scope.launch {
-            val updateInfo = kotlinx.coroutines.runBlocking {
-                updateManager.checkForUpdatesManually()
-            }
-            
+        // Check for updates in background using AlarmManager-based UpdateManager
+        updateManager.checkForUpdatesManually { updateInfo ->
             ctx.activity.runOnUiThread {
                 progressDialog.dismiss()
                 
@@ -941,10 +936,7 @@ object SettingsScreens {
                             "New version: ${updateInfo.newVersion ?: "unknown"}"
                         )
                         .setPositiveButton("Download") { _, _ ->
-                            val activityScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main)
-                            activityScope.launch {
-                                downloadAndInstallUpdate(ctx.activity, updateManager, updateInfo)
-                            }
+                            downloadAndInstallUpdate(ctx.activity, updateManager, updateInfo)
                         }
                         .setNegativeButton("Later", null)
                         .show()
